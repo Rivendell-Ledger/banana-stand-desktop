@@ -151,6 +151,22 @@ def refresh_async(household_id: int, force: bool = False) -> None:
     threading.Thread(target=refresh, args=(household_id, force), name="update-check", daemon=True).start()
 
 
+def check_now(household_id: int) -> dict:
+    """Force one check and say plainly what came back."""
+    record = refresh(household_id, force=True)
+    if record is None:
+        return {"status": "off", "message": "Update checks are turned off."}
+    if record.get("retry_at"):
+        return {"status": "error",
+                "message": "Couldn't reach GitHub just now. Try again in a few minutes."}
+    latest = str(record.get("latest") or "")
+    if latest and is_newer(latest):
+        return {"status": "newer", "latest": latest,
+                "message": f"Version {latest} is available — see the release notes."}
+    return {"status": "latest", "latest": latest or config.VERSION,
+            "message": f"You're on the latest version ({config.VERSION})."}
+
+
 def notice(household_id: int | None) -> dict | None:
     """What the banner needs, from cache only. No network call on a page render."""
     if not household_id or not enabled(household_id):

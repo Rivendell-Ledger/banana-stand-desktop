@@ -220,7 +220,7 @@
       </div>
     </div>
     <div class="form-actions">
-      <button class="btn btn-primary" type="submit">Change password</button>
+      <button class="btn btn-primary" type="submit" data-busy="Saving…">Change password</button>
       <span class="form-note">Other signed-in devices are signed out.</span>
       <span class="save-status" data-save-status role="status"></span>
     </div>
@@ -238,7 +238,7 @@
       </p>
     </div>
     <div class="form-actions">
-      <button class="btn btn-primary" type="submit">Save hint</button>
+      <button class="btn btn-primary" type="submit" data-busy="Saving…">Save hint</button>
       <span class="save-status" data-save-status role="status"></span>
     </div>
   </form>
@@ -248,6 +248,9 @@
 <section class="card" id="updates">
   <h2 class="card-title">Updates</h2>
   {% if saved == 'updates' %}<div class="alert alert-ok">Saved.</div>{% endif %}
+  {% if checked == 'latest' %}<div class="alert alert-ok">Checked — you're on the latest version (v{{ version }}).</div>{% endif %}
+  {% if checked == 'newer' and update_notice %}<div class="alert alert-info">Checked — version {{ update_notice.latest }} is available.</div>{% endif %}
+  {% if checked == 'error' %}<div class="alert alert-error" role="alert">Couldn't reach GitHub just now. Try again in a few minutes.</div>{% endif %}
   {% if update_notice %}
   <div class="alert alert-info">
     Version {{ update_notice.latest }} is available.
@@ -266,8 +269,8 @@
       You are on v{{ version }}.
     </p>
     <div class="form-actions">
-      <button class="btn btn-primary" type="submit">Save</button>
-      <button class="btn btn-ghost" type="submit" name="force" value="1">Check now</button>
+      <button class="btn btn-primary" type="submit" data-busy="Saving…">Save</button>
+      <button class="btn btn-ghost" type="submit" name="force" value="1" data-busy="Checking…">Check now</button>
       <span class="save-status" data-save-status role="status"></span>
     </div>
   </form>
@@ -300,7 +303,7 @@
       <p class="field-hint">Held back from safe-to-spend and the forecast. Your never-touch floor.</p>
     </div>
     <div class="form-actions">
-      <button class="btn btn-primary" type="submit">Save household</button>
+      <button class="btn btn-primary" type="submit" data-busy="Saving…">Save household</button>
       <span class="form-note">{{ user.display_name }}</span>
       <span class="save-status" data-save-status role="status"></span>
     </div>

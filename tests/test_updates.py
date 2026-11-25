@@ -174,6 +174,42 @@ def test_a_new_build_rechecks_instead_of_trusting_the_old_cache(client, monkeypa
     assert len(calls) == 2
 
 
+def test_check_now_says_you_are_current(client, monkeypatch):
+    make_household(client)
+    monkeypatch.setattr(updates, "_fetch_latest", lambda: {
+        "latest": config.VERSION, "url": "https://example.test/rel", "published": ""})
+    updates.set_enabled(1, True)
+    token = csrf_of(client.get("/settings").text)
+    r = client.post("/settings/updates", data={"csrf": token, "check": "1", "force": "1"},
+                    headers={"X-Requested-With": "fetch"})
+    assert r.status_code == 200
+    assert "latest version" in r.json()["message"]
+
+
+def test_check_now_announces_a_newer_build(client, monkeypatch):
+    make_household(client)
+    monkeypatch.setattr(updates, "_fetch_latest", lambda: {
+        "latest": NEWER, "url": "https://example.test/rel", "published": ""})
+    updates.set_enabled(1, True)
+    token = csrf_of(client.get("/settings").text)
+    r = client.post("/settings/updates", data={"csrf": token, "check": "1", "force": "1"},
+                    headers={"X-Requested-With": "fetch"})
+    assert r.status_code == 200
+    assert NEWER in r.json()["message"]
+    assert "available" in r.json()["message"]
+
+
+def test_check_now_reports_an_unreachable_github(client, monkeypatch):
+    make_household(client)
+    monkeypatch.setattr(updates, "_fetch_latest", lambda: (_ for _ in ()).throw(OSError("offline")))
+    updates.set_enabled(1, True)
+    token = csrf_of(client.get("/settings").text)
+    r = client.post("/settings/updates", data={"csrf": token, "check": "1", "force": "1"},
+                    headers={"X-Requested-With": "fetch"})
+    assert r.status_code == 400
+    assert "Couldn't reach GitHub" in r.json()["error"]
+
+
 def test_offline_failure_is_silent_and_still_stamped(client, monkeypatch):
     make_household(client)
     monkeypatch.setattr(updates, "_fetch_latest", lambda: (_ for _ in ()).throw(OSError("offline")))

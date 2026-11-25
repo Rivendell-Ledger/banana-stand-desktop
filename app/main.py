@@ -1762,6 +1762,7 @@ def settings_page(request: Request, linked: int = 0, error: str = ""):
         pwerr=request.query_params.get("pwerr", ""),
         update_check=updates.enabled(hid),
         update_notice=updates.notice(hid),
+        checked=request.query_params.get("checked", ""),
     )
 
 
@@ -1843,8 +1844,18 @@ def settings_updates(
     on = bool(check)
     updates.set_enabled(hid, on)
     audit("settings.update_check", request, user, enabled=on, force=bool(force))
+    if force and on:
+        # "Check now" is an explicit click: wait for the answer instead of
+        # spinning a background thread and saying nothing.
+        result = updates.check_now(hid)
+        audit("settings.update_checked", request, user, status=result["status"])
+        if _wants_json(request):
+            if result["status"] == "error":
+                return JSONResponse({"ok": False, "error": result["message"]}, status_code=400)
+            return JSONResponse({"ok": True, "message": result["message"]})
+        return redirect("/settings?checked=" + result["status"])
     if on:
-        updates.refresh_async(hid, force=bool(force))
+        updates.refresh_async(hid)
     return _saved(request, "updates", "Saved.")
 
 

@@ -25,8 +25,9 @@
 
   // Prevent accidental double submits. The page reloads on any server response.
   document.querySelectorAll("form").forEach((form) => {
-    form.addEventListener("submit", () => {
-      const btn = form.querySelector('button[type="submit"]');
+    form.addEventListener("submit", (event) => {
+      // The clicked button, not merely the first one: forms can have several.
+      const btn = event.submitter || form.querySelector('button[type="submit"]');
       if (!btn || btn.disabled) return;
       btn.dataset.label = btn.textContent;
       btn.disabled = true;
@@ -1211,7 +1212,7 @@
       const label = button ? (button.dataset.label || button.textContent) : "";
       if (button) {
         button.disabled = true;
-        button.textContent = "Saving…";
+        button.textContent = button.dataset.busy || "Saving…";
       }
       status.className = "save-status";
       status.textContent = "";
