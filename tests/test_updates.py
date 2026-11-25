@@ -13,6 +13,15 @@ from app.main import app
 PASSWORD = "correct horse battery staple"
 
 
+def next_patch() -> str:
+    """One patch above the running version, so this file survives a version bump."""
+    major, minor, patch = (list(updates.parse_version(config.VERSION)) + [0, 0, 0])[:3]
+    return f"{major}.{minor}.{patch + 1}"
+
+
+NEWER = next_patch()
+
+
 def csrf_of(html: str) -> str:
     m = re.search(r'name="csrf" value="([^"]+)"', html)
     assert m, "no csrf field"
@@ -74,7 +83,7 @@ def test_enabled_check_records_a_newer_release(client, monkeypatch):
 
     def fake_fetch():
         calls.append(1)
-        return {"latest": "1.21.13", "url": "https://example.test/rel", "published": "", "checked_at": 0}
+        return {"latest": NEWER, "url": "https://example.test/rel", "published": "", "checked_at": 0}
 
     monkeypatch.setattr(updates, "_fetch_latest", fake_fetch)
     updates.set_enabled(1, True)
@@ -83,11 +92,11 @@ def test_enabled_check_records_a_newer_release(client, monkeypatch):
 
     notice = updates.notice(1)
     assert notice is not None
-    assert notice["latest"] == "1.21.13"
+    assert notice["latest"] == NEWER
     assert notice["current"] == config.VERSION
 
     page = client.get("/", follow_redirects=False)
-    assert "Version 1.21.13 is available" in page.text
+    assert f"Version {NEWER} is available" in page.text
     assert "https://example.test/rel" in page.text
 
 
@@ -97,7 +106,7 @@ def test_the_answer_is_cached_between_renders(client, monkeypatch):
 
     def fake_fetch():
         calls.append(1)
-        return {"latest": "1.21.13", "url": "https://example.test/rel", "published": "", "checked_at": 0}
+        return {"latest": NEWER, "url": "https://example.test/rel", "published": "", "checked_at": 0}
 
     monkeypatch.setattr(updates, "_fetch_latest", fake_fetch)
     updates.set_enabled(1, True)
@@ -130,7 +139,7 @@ def test_offline_failure_is_silent_and_still_stamped(client, monkeypatch):
 def test_settings_toggle_persists_and_clears_the_cache(client, monkeypatch):
     make_household(client)
     monkeypatch.setattr(updates, "_fetch_latest", lambda: {
-        "latest": "1.21.13", "url": "https://example.test/rel", "published": "", "checked_at": 0})
+        "latest": NEWER, "url": "https://example.test/rel", "published": "", "checked_at": 0})
     token = csrf_of(client.get("/settings").text)
     r = client.post("/settings/updates", data={"csrf": token, "check": "1"}, follow_redirects=False)
     assert r.status_code == 303
