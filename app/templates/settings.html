@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% block title %}Settings · {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">The Stand</p>
+    <h1>Settings</h1>
+  </div>
+</div>
+
+{% if linked %}<div class="alert alert-ok">Connected. The first sync is done — transactions are in the ledger.</div>{% endif %}
+{% if request.query_params.get('reconnected') %}<div class="alert alert-ok">Reconnected. The connection signed in again and the sync is running.</div>{% endif %}
+{% if error %}
+<div class="alert alert-error" role="alert">
+  {% if error == 'already_linked' %}That institution is already linked. Use Reconnect on the existing connection.
+  {% elif error == 'ITEM_LOGIN_REQUIRED' %}The bank wants you to sign in again. Use Reconnect.
+  {% elif error == 'csrf' %}Session expired. Try again.
+  {% else %}Plaid returned: {{ error }}{% endif %}
+</div>
+{% endif %}
+
+<section class="card">
+  <h2 class="card-title">Bank connections</h2>
+  <div class="form-actions">
+    <a class="btn btn-ghost btn-sm" href="/settings/plaid">Plaid credentials</a>
+    <a class="btn btn-ghost btn-sm" href="/settings/recovery">Recovery kit</a>
+    <a class="btn btn-ghost btn-sm" href="/settings/desktop">Phone access</a>
+  </div>
+
+  {% if not plaid_ready %}
+  <p class="sub">Plaid is not configured yet. The app needs two API values before a bank can be linked.</p>
+  <ol class="steps">
+    <li><span class="step-n">1</span><span>Create a free developer account at <strong>dashboard.plaid.com</strong> and choose <strong>Personal use</strong>.</span></li>
+    <li><span class="step-n">2</span><span>Open <strong>Developers → Keys</strong> and copy the Client ID and the production secret.</span></li>
+    <li><span class="step-n">3</span><span>Paste them into <a href="/settings/plaid">Plaid credentials</a>. The app tests them before saving.</span></li>
+  </ol>
+  <p class="field-hint">Never paste the secret into chat or a note. It belongs in this app's encrypted settings and nowhere else.</p>
+  <div class="form-actions">
+    <a class="btn btn-primary" href="/settings/plaid">Enter Plaid keys</a>
+  </div>
+
+  {% else %}
+
+  <div class="conn-head">
+    <span class="chip {{ 'chip-pending' if plaid_env == 'sandbox' else 'chip-tag' }}">{{ plaid_env }}</span>
+    <span class="sub">{{ slots_used }} of {{ plaid_max }} Item slots used</span>
+  </div>
+
+  {% if plaid_env == 'sandbox' %}
+  <div class="alert alert-info sandbox-note">
+    Sandbox mode. In Plaid Link use <code>user_good</code> / <code>pass_good</code> (or <code>user_transactions_dynamic</code> with any password). No real bank is touched.
+  </div>
+  {% elif not production_ack %}
+  <form method="post" action="/settings/plaid/ack" class="ack-box">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label class="check">
+      <input type="checkbox" name="ack" value="1" required>
+      <span>I understand this connects to real institutions and that Plaid Item slots are permanent.</span>
+    </label>
+    <button class="btn btn-ghost btn-sm" type="submit">Unlock real connections</button>
+  </form>
+  {% endif %}
+
+  <div class="form-actions">
+    <button class="btn btn-primary" type="button" data-plaid-link data-plaid-mode="new"
+            {% if slots_used >= plaid_max %}disabled{% endif %}>Connect a bank</button>
+    {% if slots_used >= plaid_max %}<span class="hint">All 10 Trial slots are used. Removing a bank does not free one — Plaid's Trial cap is permanent. Upgrade the plan or import CSV instead.</span>{% endif %}
+  </div>
+  <p class="alert" id="plaid-status" hidden></p>
+  {% if slots_used and slots_used < plaid_max %}
+  <p class="field-hint">Adding a bank you already connected uses another permanent Trial slot. To re-authorize an existing bank, use its <strong>Reconnect</strong> button instead.</p>
+  {% endif %}
+  <p class="field-hint">Plaid may greet you with your saved accounts and text you a code — that is its returning-user shortcut, not an account picker. Tap <strong>Not you?</strong> to reach the bank list and connect something new.</p>
+  <p class="field-hint">Holdings are a separate permission: press <strong>Enable holdings</strong> once per investing connection and Plaid asks the bank for it. Balances and transactions are already flowing.</p>
+
+  {% if items %}
+  <p class="field-hint">A connection keeps the history Plaid pulled when it was created — new ones
+  ask for two years. An older connection only reaches further back if you remove it and add it again.</p>
+  <ul class="conn-list">
+    {% for i in items %}
+    <li class="conn-row">
+      <div class="conn-main">
+        <p class="conn-name">{{ i.institution_name or 'Institution' }}</p>
+        <p class="conn-meta">
+          {% if i.status == 'good' %}<span class="chip">connected</span>
+          {% elif i.status == 'login_required' %}<span class="chip chip-pending">reconnect needed</span>
+          {% else %}<span class="chip chip-pending">error</span>{% endif %}
+          {{ i.account_count }} account{{ '' if i.account_count == 1 else 's' }}
+          {% if i.holdings_count %} · {{ i.holdings_count }} holding{{ '' if i.holdings_count == 1 else 's' }}{% endif %}
+          {% if i.last_sync_at %} · synced {{ i.last_sync_at[:16].replace('T', ' ') }}{% else %} · never synced{% endif %}
+          {% if i.last_sync_summary %} · {{ i.last_sync_summary }}{% endif %}
+          {% if i.error_code %} · <code>{{ i.error_code }}</code>{% endif %}
+        </p>
+      </div>
+      <div class="conn-actions">
+        <form method="post" action="/plaid/sync/{{ i.id }}">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="btn btn-ghost btn-sm" type="submit">Sync now</button>
+        </form>
+        <button class="btn btn-ghost btn-sm" type="button" data-plaid-link data-plaid-mode="update"
+                data-plaid-item="{{ i.id }}">Reconnect</button>
+        {% if i.investment_count %}
+          {% if i.holdings_synced_at %}
+          <form method="post" action="/plaid/sync-holdings/{{ i.id }}">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <button class="btn btn-ghost btn-sm" type="submit">Sync holdings</button>
+          </form>
+          {% else %}
+          <button class="btn btn-ghost btn-sm" type="button" data-plaid-link data-plaid-mode="consent"
+                  data-plaid-item="{{ i.id }}">Enable holdings</button>
+          {% endif %}
+        {% endif %}
+        <details class="inline-danger">
+          <summary class="btn btn-ghost btn-sm danger">Remove</summary>
+          <form method="post" action="/plaid/remove/{{ i.id }}" class="confirm-box">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <p class="field-hint">Unlinks the Item and stops syncs. Transactions already imported stay in the ledger.</p>
+            <button class="btn btn-ghost btn-sm danger" type="submit">Yes, remove</button>
+          </form>
+        </details>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="sub">No banks connected yet. Connect one to start pulling transactions.</p>
+  {% endif %}
+
+  {% endif %}
+</section>
+
+{% if plaid_ready and plaid_env == 'production' and production_ack %}
+<section class="card">
+  <h2 class="card-title">Production guard</h2>
+  <form method="post" action="/settings/plaid/ack">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <p class="field-hint">Connected banks keep syncing. Re-locking only stops new bank links until you unlock again.</p>
+    <label class="check"><input type="checkbox" name="ack" value="1" required><span>Re-lock real connections</span></label>
+    <button class="btn btn-ghost btn-sm" type="submit">Re-lock</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2 class="card-title">Manage</h2>
+  <ul class="history">
+    <li><a href="/categories">Categories</a><span class="muted">taxonomy, merge, archive</span></li>
+    <li><a href="/rules">Rules &amp; aliases</a><span class="muted">auto-categorise, rename merchants</span></li>
+    <li><a href="/import">Import CSV</a><span class="muted">backfill from a card export</span></li>
+    <li><a href="/trash">Trash</a><span class="muted">restore deleted transactions</span></li>
+    <li><a href="/settings/audit">Audit log</a><span class="muted">every change, who and when</span></li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Household</h2>
+  {% if saved %}<div class="alert alert-ok">Saved.</div>{% endif %}
+  <form method="post" action="/settings/household" class="form-grid">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field">
+      <label for="h-name">Household name</label>
+      <input class="input" id="h-name" name="household" value="{{ household.name if household else '' }}" maxlength="80">
+    </div>
+    <div class="field">
+      <label for="h-buffer">Buffer</label>
+      <input class="input" id="h-buffer" name="buffer" inputmode="decimal"
+             value="{{ '%.2f'|format((household.buffer_cents if household else 0) / 100) }}">
+      <p class="field-hint">Held back from safe-to-spend and the forecast. Your never-touch floor.</p>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Save household</button>
+      <span class="hint">{{ user.display_name }}</span>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Backups</h2>
+  {% if backups.count %}
+  <p class="sub">{{ backups.count }} backup{{ '' if backups.count == 1 else 's' }} · newest {{ backups.latest }} ·
+  {% if backups.age_days < 1 %}written just now{% elif backups.age_days < 2 %}written today{% else %}{{ backups.age_days|round(0, 'floor')|int }} days old{% endif %}
+  · {{ '%.0f'|format(backups.bytes / 1024) }} KB</p>
+  {% if backups.age_days is not none and backups.age_days > 7 %}
+  <p class="field-hint warn">Last backup is over a week old. Use <strong>Back up now</strong> in the tray menu.</p>
+  {% endif %}
+  {% else %}
+  <p class="sub">No backups yet. They run nightly at 03:10 while the app is running; the tray menu's <strong>Back up now</strong> takes one immediately.</p>
+  {% endif %}
+  <p class="field-hint">
+    Nightly backup at 03:10, restore check and retention purge at 03:40 — all while
+    The Banana Stand is running. Backups are plain database files in the data folder's
+    <code>backups</code> directory; copy them somewhere else as well.
+  </p>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Household</h2>
+  <p class="sub">{{ user.household_name }} · {{ user.display_name }}</p>
+  <p class="field-hint">Everything lives on this machine in SQLite. No third party holds the ledger.</p>
+  <p class="field-hint">The Banana Stand v{{ version }}</p>
+</section>
+{% endblock %}
+
+{% block scripts %}
+{% if plaid_ready %}
+<script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+<script src="/static/js/plaid-link.js?v={{ version }}"></script>
+{% endif %}
+{% endblock %}

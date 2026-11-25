@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Sign in · {{ app_name }}{% endblock %}
+{% block chrome %}{% endblock %}
+{% block mainclass %}auth-wrap{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+<section class="card auth-card">
+  <img class="auth-mark" src="/static/img/banana-mark.png" alt="" width="56" height="56">
+
+  <h1 class="auth-title">The Banana Stand</h1>
+  <p class="auth-tag">There's always money in the banana stand.</p>
+  <p class="auth-version">v{{ version }}</p>
+
+  {% if created %}
+  <div class="alert alert-ok">Household created. Sign in to continue.</div>
+  {% endif %}
+  {% if error %}
+  <div class="alert alert-error" role="alert">{{ error }}</div>
+  {% endif %}
+
+  <form class="auth-form" method="post" action="/login" novalidate>
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field">
+      <label for="email">Name</label>
+      <input class="input" id="email" name="email" type="text" autocomplete="username"
+             inputmode="text" required value="{{ email or '' }}" placeholder="Your name">
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input class="input" id="password" name="password" type="password"
+             autocomplete="current-password" required placeholder="Your password">
+    </div>
+    <div class="auth-actions">
+      <button class="btn btn-primary" type="submit">Sign in</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

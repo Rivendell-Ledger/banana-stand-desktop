@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}Bills & Income · {{ app_name }}{% endblock %}
+
+{% block content %}
+{% include "_plan_nav.html" %}
+
+<div class="page-head">
+  <div>
+    <h1>Bills &amp; Income</h1>
+    <p class="sub">What comes around, and when. Confirmed items feed the forecast and the budget.</p>
+  </div>
+  <div class="head-actions">
+    <form method="post" action="/bills/scan">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="btn btn-ghost" type="submit">Scan history</button>
+    </form>
+    <a class="btn btn-primary" href="/bills/new">Add</a>
+  </div>
+</div>
+
+{% if scanned is not none and scanned != '' %}
+<div class="alert alert-ok">{{ scanned }} recurring charge{{ '' if scanned == '1' else 's' }} found. Confirm what looks right.</div>
+{% endif %}
+{% if saved %}<div class="alert alert-ok">Saved.</div>{% endif %}
+{% if request.query_params.get('error') %}<div class="alert alert-error" role="alert">{{ request.query_params.get('error')|replace('+', ' ') }}</div>{% endif %}
+
+<div class="month-switch">
+  <a class="btn btn-ghost btn-sm" href="/bills?month={{ prev }}" aria-label="Previous month">←</a>
+  <h2 class="month-name">{{ label }}</h2>
+  <a class="btn btn-ghost btn-sm" href="/bills?month={{ next }}" aria-label="Next month">→</a>
+  {% if not is_current %}<a class="btn btn-ghost btn-sm" href="/bills">This month</a>{% endif %}
+</div>
+
+<section class="totals bills-totals">
+  <div class="total">
+    <p class="label">Total Income</p>
+    <p class="total-figure pos">{{ income_total|money }}</p>
+  </div>
+  <div class="total">
+    <p class="label">Total Bills</p>
+    <p class="total-figure">{{ bill_total|money }}</p>
+  </div>
+  <div class="total total-net">
+    <p class="label">Net</p>
+    <p class="total-figure {{ 'pos' if income_total - bill_total >= 0 else 'neg' }}">{{ (income_total - bill_total)|money(signed=True) }}</p>
+  </div>
+</section>
+
+{% macro rec_section(title, items, total, kind) %}
+{% set pending = items|selectattr('status', 'equalto', 'suggested')|list %}
+<details class="card rec-section" {% if pending %}open{% endif %}>
+  <summary class="card-title-row">
+    <span class="card-title">{{ title }} <span class="count">{{ items|length }}</span></span>
+    {% if pending %}<span class="chip chip-accent">{{ pending|length }} to review</span>{% endif %}
+    <span class="muted rec-section-total">{{ total|money }} this month</span>
+  </summary>
+  <div class="rec-add">
+    <a class="btn btn-ghost btn-sm" href="/bills/new?kind={{ kind }}">+ Add {{ 'a bill' if kind == 'bill' else 'income' }}</a>
+  </div>
+  {% if items %}
+  <ul class="rec-list">
+    {% for r in items %}
+    <li class="rec-row">
+      <a class="rec-main" href="/bills/{{ r.id }}">
+        <p class="rec-name">{{ r.name }}
+          {% if r.status == 'suggested' %}<span class="chip chip-accent">suggested</span>{% endif %}
+          {% if r.amount_varies %}<span class="chip chip-muted">varies</span>{% endif %}
+        </p>
+        <p class="rec-meta">
+          {{ r.cadence_label }} · next {{ r.next_due_on|datefmt }}{% if r.category_name %} · {{ r.category_name }}{% endif %}
+        </p>
+      </a>
+      <span class="rec-right">
+        <span class="rec-controls">
+        {% if r.status == 'suggested' %}
+        <form class="rec-confirm" method="post" action="/bills/{{ r.id }}/confirm" data-auto-submit>
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <input class="rec-check" type="checkbox" id="confirm-{{ r.id }}" name="confirmed" value="1"
+                 aria-label="Confirm {{ r.name }}">
+          <label for="confirm-{{ r.id }}">Confirm</label>
+        </form>
+        <form method="post" action="/bills/{{ r.id }}/ignore" class="rec-deny">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="btn btn-ghost btn-sm" type="submit"
+                  aria-label="Dismiss {{ r.name }}" title="Not a {{ 'bill' if kind == 'bill' else 'income' }}">&#10005;</button>
+        </form>
+        {% endif %}
+        </span>
+        <span class="rec-amount {{ 'pos' if kind == 'income' else '' }}">{{ r.amount_cents|money }}</span>
+        <a class="btn btn-ghost btn-sm rec-edit" href="/bills/{{ r.id }}">Edit</a>
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="sub">Nothing added yet.</p>
+  {% endif %}
+</details>
+{% endmacro %}
+
+<section class="card">
+  <div class="fc-month-head">
+    <h2 class="card-title">Scheduled in {{ label }}</h2>
+    {% if suggested_count %}<span class="chip chip-accent">{{ suggested_count }} to confirm</span>{% endif %}
+  </div>
+  {% if schedule %}
+  <div class="cal-legend">
+    <span><span class="cal-dot income"></span> Income</span>
+    <span><span class="cal-dot bill"></span> Bill</span>
+  </div>
+  <div class="cal" data-cal data-csrf="{{ csrf }}">
+    <div class="cal-dow" aria-hidden="true">
+      <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+    </div>
+    <div class="cal-grid">
+      {% for week in weeks %}
+        {% for day in week %}
+          {% if day is none %}
+          <span class="cal-blank"></span>
+          {% else %}
+          <button type="button"
+                  class="cal-day{% if day.is_today %} is-today{% endif %}"
+                  data-cal-day="{{ day.iso }}"
+                  data-cal-items='{{ day["items"]|tojson }}'
+                  aria-pressed="false"
+                  aria-label="{{ day.day }}: {{ day.income_count }} income, {{ day.bill_count }} bill{{ '' if day.bill_count == 1 else 's' }}">
+            <span class="cal-num">{{ day.day }}</span>
+            <span class="cal-dots">
+              {% for i in day['items'][:6] %}<span class="cal-dot {{ 'income' if i.kind == 'income' else 'bill' }}"></span>{% endfor %}
+              {% if day['items']|length > 6 %}<span class="cal-more">+{{ day['items']|length - 6 }}</span>{% endif %}
+            </span>
+          </button>
+          {% endif %}
+        {% endfor %}
+      {% endfor %}
+    </div>
+  </div>
+  <div class="cal-detail" data-cal-detail aria-live="polite">
+    <p class="sub">Tap a day to see what is due.</p>
+  </div>
+  {% else %}
+  <p class="sub">Nothing scheduled in {{ label }}. Scan your history, or add a bill by hand.</p>
+  {% endif %}
+</section>
+
+{{ rec_section('Bills', bill_items, bill_total, 'bill') }}
+{{ rec_section('Income', income_items, income_total, 'income') }}
+
+{% if ended %}
+<details class="card">
+  <summary class="card-title">Ended ({{ ended|length }})</summary>
+  <ul class="rec-list">
+    {% for r in ended %}
+    <li class="rec-row">
+      <div class="rec-main"><p class="rec-name">{{ r.name }}</p></div>
+      <div class="rec-actions">
+        <form method="post" action="/bills/{{ r.id }}/confirm">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="btn btn-ghost btn-sm" type="submit">Reactivate</button>
+        </form>
+        <form method="post" action="/bills/{{ r.id }}/delete">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="btn btn-ghost btn-sm danger" type="submit">Delete</button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</details>
+{% endif %}
+{% endblock %}

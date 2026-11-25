@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Net worth · {{ app_name }}{% endblock %}
+
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Balance sheet</p>
+    <h1>Net worth</h1>
+  </div>
+  <a class="btn btn-ghost" href="/accounts">Manage accounts</a>
+</div>
+
+<section class="card hero">
+  <p class="label">Net worth</p>
+  <p class="figure">{{ totals.net|money }}</p>
+  <p class="sub">
+    {% if change %}
+      <span class="{{ 'up' if change.delta >= 0 else 'down' }}">{{ change.delta|money(signed=True) }} · {{ change.pct|pct }}</span>
+      <span class="muted">{{ change.label }}</span>
+    {% elif series|length == 1 %}
+      First snapshot today. The trend builds as balances change.
+    {% else %}
+      Add an account to start the trend.
+    {% endif %}
+  </p>
+  <div class="chart-tabs range-tabs">
+    {% for key, label in ranges %}
+    <a class="chart-tab{% if key == range_key %} is-active{% endif %}"
+       href="/net-worth?range={{ key }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="totals">
+  <div class="total">
+    <p class="label">Assets</p>
+    <p class="total-figure">{{ totals.assets|money }}</p>
+  </div>
+  <div class="total">
+    <p class="label">Liabilities</p>
+    <p class="total-figure">{{ totals.liabilities|money }}</p>
+  </div>
+  <div class="total total-net">
+    <p class="label">Net</p>
+    <p class="total-figure">{{ totals.net|money }}</p>
+  </div>
+</section>
+
+{% if charts %}
+<section class="card chart-card" data-chart data-keys="net" data-series='{{ chart_data|tojson }}'>
+  <div class="chart-head">
+    <h2 class="card-title">Net worth</h2>
+    <p class="chart-readout" data-readout>Drag to inspect</p>
+  </div>
+  <div class="chart-plot">
+    <svg class="chart" viewBox="0 0 640 160" preserveAspectRatio="none" role="img" aria-label="Net worth over time">
+      <polygon points="{{ charts.net.area }}" class="chart-area"/>
+      <polyline points="{{ charts.net.points }}" class="chart-line" vector-effect="non-scaling-stroke"/>
+    </svg>
+    <div class="chart-cursor" data-cursor hidden></div>
+  </div>
+  <div class="chart-axis">
+    <span>{{ series[0].as_of_date|datefmt }}</span>
+    <span>{{ series[-1].as_of_date|datefmt }}</span>
+  </div>
+</section>
+
+<section class="card chart-card" data-chart data-keys="assets,liabilities" data-unit="pct" data-series='{{ chart_data|tojson }}'>
+  <div class="chart-head">
+    <h2 class="card-title">Assets vs liabilities</h2>
+    <p class="chart-readout" data-readout>Drag to inspect</p>
+  </div>
+  <p class="chart-legend">
+    <span><i class="sw sw-asset"></i>Assets</span>
+    <span><i class="sw sw-liability"></i>Liabilities</span>
+  </p>
+  <div class="chart-plot">
+    <svg class="chart" viewBox="0 0 640 160" preserveAspectRatio="none" role="img" aria-label="Assets and liabilities growth">
+      {% if charts.zero_y is not none %}<line x1="0" y1="{{ charts.zero_y }}" x2="640" y2="{{ charts.zero_y }}" class="chart-zero"/>{% endif %}
+      <polyline points="{{ charts.assets.points }}" class="chart-line chart-assets" vector-effect="non-scaling-stroke"/>
+      <polyline points="{{ charts.liabilities.points }}" class="chart-line chart-liabilities" vector-effect="non-scaling-stroke"/>
+    </svg>
+    <div class="chart-cursor" data-cursor hidden></div>
+  </div>
+  <div class="chart-axis">
+    <span>{{ series[0].as_of_date|datefmt }}</span>
+    <span>{{ series[-1].as_of_date|datefmt }}</span>
+  </div>
+</section>
+{% else %}
+<section class="card empty-card">
+  <h2>Not enough history yet</h2>
+  <p class="sub">History starts {% if series %}{{ series[0].as_of_date|datefmt }} at {{ series[0].net_cents|money }}{% else %}the day you add an account{% endif %}. The line draws once the next snapshot lands — one is written every time balances change.</p>
+</section>
+{% endif %}
+
+
+
+{% endblock %}

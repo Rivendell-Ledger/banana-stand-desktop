@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Forecast · {{ app_name }}{% endblock %}
+
+{% block content %}
+{% include "_plan_nav.html" %}
+
+<div class="page-head">
+  <div>
+    <h1>Next {{ days }} days</h1>
+    <p class="sub">{{ fc.start }} → {{ fc.end }} · confirmed bills and income only.</p>
+  </div>
+  <div class="head-actions">
+    {% for value, label in horizons %}
+    <a class="btn btn-sm {{ 'btn-primary' if days == value else 'btn-ghost' }}" href="/forecast?days={{ value }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+{% if not fc.has_recurring %}
+<section class="card empty-card">
+  <h2>Nothing scheduled yet</h2>
+  <p class="sub">The forecast is built from confirmed bills and income. <a href="/bills">Scan your history</a> to start.</p>
+</section>
+{% else %}
+
+<section class="totals fc-totals">
+  <div class="total">
+    <p class="label">Cash today</p>
+    <p class="total-figure">{{ fc.opening_cents|money }}</p>
+  </div>
+  <div class="total">
+    <p class="label">Bills</p>
+    <p class="total-figure neg">−{{ fc.bills_total_cents|money }}</p>
+  </div>
+  <div class="total">
+    <p class="label">Income</p>
+    <p class="total-figure pos">+{{ fc.income_total_cents|money }}</p>
+  </div>
+  <div class="total total-net">
+    <p class="label">Low point</p>
+    <p class="total-figure {{ 'neg' if fc.breach else '' }}">{{ fc.low.balance_cents|money }}</p>
+    <p class="field-hint">on {{ fc.low.date }} · buffer {{ fc.buffer_cents|money }}</p>
+  </div>
+</section>
+
+{% if fc.breach %}
+<div class="alert alert-error" role="alert">
+  Projected balance dips {{ (fc.buffer_cents - fc.low.balance_cents)|money }} below your buffer on {{ fc.low.date }}.
+</div>
+{% else %}
+<div class="alert alert-ok">You stay above the buffer for the whole window. Lowest point {{ fc.low.balance_cents|money }} on {{ fc.low.date }}.</div>
+{% endif %}
+
+<section class="card">
+  <svg class="fc-chart" viewBox="0 0 300 80" preserveAspectRatio="none" role="img"
+       aria-label="Projected balance over the next {{ days }} days">
+    <polygon points="{{ fc.chart.area }}" class="fc-area"></polygon>
+    <line x1="0" y1="{{ fc.chart.buffer_y }}" x2="300" y2="{{ fc.chart.buffer_y }}" class="fc-buffer"></line>
+    <polyline points="{{ fc.chart.points }}" class="fc-line"></polyline>
+  </svg>
+  <p class="field-hint">Dashed line is the buffer. Ending balance {{ fc.closing_cents|money }}.</p>
+</section>
+
+{% for m in fc.months %}
+<section class="card">
+  <div class="fc-month-head">
+    <h2 class="card-title">{{ m.label }}</h2>
+    <span class="{{ 'neg' if m.net_cents < 0 else 'pos' }}">{{ m.net_cents|money(signed=True) }}</span>
+  </div>
+  <ul class="fc-list">
+    {% for e in m.events %}
+    <li class="fc-row">
+      <span class="fc-date">{{ e.date|datefmt }}</span>
+      <span class="fc-name">{{ e.name }}</span>
+      <span class="fc-amount {{ 'neg' if e.amount_cents < 0 else 'pos' }}">{{ e.amount_cents|money(signed=True) }}</span>
+      <span class="fc-balance">{{ e.balance_cents|money }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endfor %}
+{% endif %}
+{% endblock %}

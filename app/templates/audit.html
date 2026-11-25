@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Audit log · {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow"><a href="/settings">Settings</a></p>
+    <h1>Audit log</h1>
+    <p class="sub">{{ total }} entr{{ 'y' if total == 1 else 'ies' }} recorded · showing the last {{ rows|length }}.</p>
+  </div>
+</div>
+
+<section class="card">
+  <form method="get" action="/settings/audit" class="filter-row">
+    <label class="sr-only" for="a-action">Action</label>
+    <select class="input" id="a-action" name="action" data-autosubmit>
+      <option value="">All actions</option>
+      {% for a in actions %}
+      <option value="{{ a }}" {% if a == action %}selected{% endif %}>{{ a }}</option>
+      {% endfor %}
+    </select>
+    <noscript><button class="btn btn-ghost btn-sm" type="submit">Filter</button></noscript>
+  </form>
+
+  {% if rows %}
+  <ul class="audit-list">
+    {% for row in rows %}
+    <li class="audit-row">
+      <span class="audit-action">{{ row.action }}</span>
+      <span class="audit-meta">
+        {{ row.created_at|localdt }}
+        {% if row.ip %} · {{ row.ip }}{% endif %}
+        {% if row.meta_json and row.meta_json != '{}' %} · <code>{{ row.meta_json }}</code>{% endif %}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="sub">Nothing recorded yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

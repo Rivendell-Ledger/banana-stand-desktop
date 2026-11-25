@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Credit cards · {{ app_name }}{% endblock %}
+
+{% block content %}
+{% include "_acct_nav.html" %}
+
+<div class="page-head">
+  <div>
+    <h1>Credit cards</h1>
+    <p class="sub">
+      {% if cc %}Total balance by day · {{ cc.start|datefmt }} → {{ cc.end|datefmt }}
+      {% else %}Balances across every card{% endif %}
+    </p>
+  </div>
+  <a class="btn btn-ghost" href="/accounts">All accounts</a>
+</div>
+
+{% if not cc %}
+<section class="card empty-card">
+  <h2>No credit cards yet</h2>
+  <p class="sub">Add a card on <a href="/accounts/new">Accounts</a> and its balance will be tracked here.</p>
+</section>
+{% else %}
+<section class="totals report-totals">
+  <div class="total">
+    <p class="label">Owed today</p>
+    <p class="total-figure">{{ cc.current_cents|money }}</p>
+  </div>
+  <div class="total">
+    <p class="label">Change over {{ cc.days }} days</p>
+    <p class="total-figure {{ 'neg' if cc.change_cents >= 0 else 'pos' }}">{{ cc.change_cents|money(signed=True) }}</p>
+  </div>
+  <div class="total">
+    <p class="label">Cards</p>
+    <p class="total-figure">{{ cc.cards|length }}</p>
+  </div>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Total card balance</h2>
+  <div class="chart-wrap chart-wrap-short">
+    <div class="chart-yaxis" aria-hidden="true">
+      {% for t in cc.ticks|reverse %}<span>{{ t.label }}</span>{% endfor %}
+    </div>
+    <div class="chart-scroll">
+      <svg class="perf-chart" viewBox="0 0 {{ cc.width }} {{ cc.height }}" preserveAspectRatio="none"
+           role="img" aria-label="Total credit card balance from {{ cc.start }} to {{ cc.end }}">
+        <polygon class="cc-area" points="6,{{ cc.height - 6 }} {{ cc.points }} {{ cc.width - 6 }},{{ cc.height - 6 }}"></polygon>
+        <polyline class="perf-line perf-cc" points="{{ cc.points }}" vector-effect="non-scaling-stroke"></polyline>
+      </svg>
+      <div class="chart-axis" aria-hidden="true">
+        <span>{{ cc.start|datefmt }}</span><span>{{ cc.end|datefmt }}</span>
+      </div>
+    </div>
+  </div>
+  <p class="field-hint">Reconstructed from each card's posted charges and payments, walked back from today's balance.
+    A card with no feed shows a flat line.</p>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Cards</h2>
+  <ul class="history">
+    {% for c in cc.cards %}
+    <li>
+      <span>
+        <a href="/accounts/{{ c.id }}">{{ c.name }}</a>
+        <span class="muted">{{ c.institution or 'Manual' }}{% if c.mask %} · ••{{ c.mask }}{% endif %}</span>
+      </span>
+      <span class="money">{{ c.current_balance_cents|money }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

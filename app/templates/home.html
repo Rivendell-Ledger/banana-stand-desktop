@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Home · {{ app_name }}{% endblock %}
+
+{% block content %}
+{% if setup_pending %}
+<a class="alert-strip" href="/setup/connect">
+  <span class="alert-strip-dot"></span>
+  <span>Finish setting up: connect a bank and make a recovery kit</span>
+  <span class="alert-strip-go">→</span>
+</a>
+{% endif %}
+{% if alert_counts.total %}
+<a class="alert-strip" href="/alerts">
+  <span class="alert-strip-dot"></span>
+  <span>{{ alert_counts.total }} thing{{ '' if alert_counts.total == 1 else 's' }} {{ 'needs' if alert_counts.total == 1 else 'need' }} a look</span>
+  <span class="alert-strip-go">→</span>
+</a>
+{% endif %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">{{ month.label }} · day {{ month.day }} of {{ month.days }}</p>
+    <h1>{{ greeting }}, {{ user.display_name.split(' ')[0] }}</h1>
+  </div>
+  <div class="till-block">
+    <div class="till" data-pct="{{ month.pct }}" role="progressbar" aria-label="Month elapsed"
+         aria-valuenow="{{ month.pct }}" aria-valuemin="0" aria-valuemax="100">
+      <span class="till-fill"></span>
+    </div>
+    <div class="till-note">
+      <span>{{ month.pct }}% of month</span>
+      <span>{{ month.days - month.day }} days left</span>
+    </div>
+  </div>
+</div>
+
+<section class="card hero up-next" aria-labelledby="up-label">
+  <div class="fc-month-head">
+    <p class="label" id="up-label">Coming up</p>
+    <a class="hint" href="/bills">Bills &amp; income →</a>
+  </div>
+  {% if upcoming %}
+  <ul class="up-list">
+    {% for e in upcoming %}
+    <li class="up-row">
+      <span class="up-date">{{ e.date|datefmt }}<span class="up-when">{{ e.date|reldate }}</span></span>
+      <span class="up-name">{{ e.name }}</span>
+      <span class="up-amt {{ 'pos' if e.kind == 'income' else '' }}">{{ e.amount_cents|money(signed=True) }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="sub">Nothing scheduled in the next {{ upcoming_days }} days. <a href="/bills">Bills &amp; income</a> has the full calendar.</p>
+  {% endif %}
+</section>
+
+<div class="grid-3">
+  <section class="card mini">
+    <p class="label">This month</p>
+    <p class="figure">{{ safe.spent_cents|money }}</p>
+    <p class="sub">
+      {% if safe.has_budgets %}of {{ safe.budgeted_cents|money }} budgeted · <a href="/budget">open</a>
+      {% else %}No budgets yet. <a href="/budget">Set the first one</a>.{% endif %}
+    </p>
+  </section>
+  <section class="card mini">
+    <p class="label">Net worth</p>
+    {% if accounts %}
+    <p class="figure">{{ totals.net|money }}</p>
+    <p class="sub">
+      {% if change %}{{ change.delta|money(signed=True) }} {{ change.label }}{% else %}Assets {{ totals.assets|money }} · debts {{ totals.liabilities|money }}{% endif %} · <a href="/net-worth">details</a>
+    </p>
+    {% else %}
+    <p class="figure muted-figure">—</p>
+    <p class="sub">Add an account and this becomes real.</p>
+    {% endif %}
+  </section>
+  <section class="card mini">
+    <p class="label">Portfolio</p>
+    {% if held %}
+    <p class="figure">{{ portfolio_totals.value_cents|money }}</p>
+    <p class="sub">
+      {{ portfolio_totals.gain_cents|money(signed=True) }} unrealised
+      · <a href="/portfolio">details</a>
+    </p>
+    {% else %}
+    <p class="figure muted-figure">—</p>
+    <p class="sub"><a href="/portfolio">Add holdings</a> to see value and return.</p>
+    {% endif %}
+  </section>
+</div>
+
+{% if spend_curve %}
+<section class="card spend-compare">
+  <div class="fc-month-head">
+    <h2 class="card-title">Spending pace</h2>
+    <span class="muted compare-note">{{ spend_curve.last_label }} vs {{ spend_curve.this_label }}</span>
+  </div>
+  <div class="curve-wrap">
+    <div class="curve-yaxis" aria-hidden="true">
+      {% for g in spend_curve.ticks|reverse %}<span>{{ g.label }}</span>{% endfor %}
+    </div>
+    <div class="curve-scroll">
+      <svg class="curve" viewBox="0 0 320 120" preserveAspectRatio="none" role="img"
+           aria-label="Cumulative spending: {{ spend_curve.this_label }} against {{ spend_curve.last_label }}"
+           data-scrub data-format="money"
+           data-labels='{{ spend_curve.labels|tojson }}'
+           data-series='{{ spend_curve.series|tojson }}'
+           data-geom='{{ {"lo": 0, "hi": spend_curve.hi, "w": 320, "h": 120, "pad": 6}|tojson }}'>
+        <polyline class="curve-line last" points="{{ spend_curve.last.points }}"
+                  vector-effect="non-scaling-stroke"></polyline>
+        <polyline class="curve-line this" points="{{ spend_curve.this.points }}"
+                  vector-effect="non-scaling-stroke"></polyline>
+        <g class="perf-pick" aria-hidden="true">
+          <line class="perf-rule" x1="0" x2="0" y1="0" y2="120" vector-effect="non-scaling-stroke"></line>
+          <circle class="perf-pdot perf-portfolio" r="4.5" cx="-20" cy="-20"></circle>
+          <circle class="perf-pdot perf-last" r="4.5" cx="-20" cy="-20"></circle>
+        </g>
+      </svg>
+      <div class="curve-axis" aria-hidden="true">
+        <span>Day 1</span><span>Day {{ spend_curve.days }}</span>
+      </div>
+    </div>
+  </div>
+  <div class="flow-legend">
+    <span class="perf-day" data-chart-day>Day {{ spend_curve.today }}</span>
+    <span><i class="curve-dot this"></i>{{ spend_curve.this_short }} ·
+      <b class="perf-value" data-chart-value="this">{{ spend_curve.this.total_cents|money }}</b></span>
+    <span><i class="curve-dot last"></i>{{ spend_curve.last_short }} ·
+      <b class="perf-value" data-chart-value="last">{{ spend_curve.last.total_cents|money }}</b></span>
+  </div>
+</section>
+{% endif %}
+
+{% if pending_review %}
+<section class="card pending-card" id="pending-review">
+  <div class="fc-month-head">
+    <h2 class="card-title">Pending review</h2>
+    <span class="pending-actions">
+      <span class="chip chip-accent" data-pending-chip>{{ pending_review|length }} waiting</span>
+      {% if pending_review|length > 1 %}
+      <form method="post" action="/transactions/review-all" data-inline-review-all>
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input type="hidden" name="next" value="/#pending-review">
+        <button class="chip chip-btn" type="submit"
+                title="Mark all {{ pending_review|length }} pending charges as reviewed">Reviewed all</button>
+      </form>
+      {% endif %}
+    </span>
+  </div>
+  <ul class="pending-list">
+    {% for t in pending_review %}
+    <li class="pending-row">
+      <span class="pending-main">
+        <span class="pending-name">{{ t.merchant }}</span>
+        <span class="pending-meta">{{ t.posted_on|datefmt }} · {{ t.account_name }}</span>
+      </span>
+      <span class="pending-amount">{{ t.amount_cents|money }}</span>
+      <form method="post" action="/transactions/{{ t.id }}/posted" class="pending-review" data-inline-review>
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input type="hidden" name="next" value="/#pending-review">
+        <button class="btn btn-ghost btn-sm" type="submit" title="Mark that you have looked at it">Review</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{% if not accounts %}
+<section class="card next">
+  <h2>Getting started</h2>
+  <ol class="steps">
+    <li><span class="step-n">1</span><span><a href="/accounts/new">Add your accounts</a> — checking, cards, mortgage, brokerage</span></li>
+    <li><span class="step-n">2</span><span><a href="/import">Import a few months of CSV history</a>, or connect a bank in <a href="/settings">Settings</a></span></li>
+    <li><span class="step-n">3</span><span><a href="/budget">Set this month's budgets</a></span></li>
+  </ol>
+</section>
+{% endif %}
+{% endblock %}

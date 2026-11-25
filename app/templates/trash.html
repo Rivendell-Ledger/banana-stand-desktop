@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Trash · {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow"><a href="/transactions">Transactions</a></p>
+    <h1>Trash</h1>
+  </div>
+</div>
+
+<section class="card">
+  {% if rows %}
+  <p class="sub">Deleted transactions stay here for 90 days, then the nightly retention job removes them for good.</p>
+  <ul class="history txn-trash">
+    {% for t in rows %}
+    <li>
+      <span>
+        <strong>{{ t.merchant }}</strong>
+        <span class="muted">{{ t.posted_on|datefmt }} · {{ t.account_name }}</span>
+      </span>
+      <span class="trash-actions">
+        <span class="money">{{ t.amount_cents|money }}</span>
+        <form method="post" action="/transactions/{{ t.id }}/restore">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="btn btn-ghost btn-sm" type="submit">Restore</button>
+        </form>
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <h2>Nothing in the trash</h2>
+  <p class="sub">Either nothing was deleted, or the ledger is having a very tidy week.</p>
+  {% endif %}
+</section>
+{% endblock %}

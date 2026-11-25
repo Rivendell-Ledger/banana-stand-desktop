@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Categories · {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow"><a href="/settings">Settings</a></p>
+    <h1>Categories</h1>
+    <p class="sub">The spine of every report. Merge instead of delete — history moves with it.</p>
+  </div>
+</div>
+
+{% if request.query_params.get('merged') %}<div class="alert alert-ok">Merged. Transactions moved across.</div>{% endif %}
+{% if request.query_params.get('error') %}<div class="alert alert-error" role="alert">{{ request.query_params.get('error')|replace('+', ' ') }}</div>{% endif %}
+
+<section class="card quick-add">
+  <details {% if not flat %}open{% endif %}>
+    <summary class="quick-add-summary">New category</summary>
+    <form method="post" action="/categories" class="form-grid">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field">
+        <label for="c-name">Name</label>
+        <input class="input" id="c-name" name="name" required placeholder="Garden">
+      </div>
+      <div class="field">
+        <label for="c-kind">Kind</label>
+        <select class="input" id="c-kind" name="kind">
+          <option value="expense">Expense</option>
+          <option value="income">Income</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="c-parent">Parent <span class="optional">optional</span></label>
+        <select class="input" id="c-parent" name="parent_id">
+          <option value="">Top level</option>
+          {% for c in flat if not c.parent_id and c.name != 'Uncategorized' %}
+          <option value="{{ c.id }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-actions"><button class="btn btn-primary" type="submit">Add category</button></div>
+    </form>
+  </details>
+</section>
+
+<section class="cat-tree">
+  {% for root in tree %}
+  <div class="cat-group">
+    <div class="cat-row cat-root">
+      <a class="cat-name" href="/categories/{{ root.id }}">
+        {{ root.name }}
+        {% if root.is_system %}<span class="chip chip-muted">system</span>{% endif %}
+        {% if root.kind == 'income' %}<span class="chip">income</span>{% endif %}
+      </a>
+      <span class="cat-uses">{{ root.uses }}</span>
+      <span class="cat-bar"><span class="cat-bar-fill" data-uses="{{ root.uses }}"></span></span>
+    </div>
+    {% for child in root.children %}
+    <div class="cat-row cat-child">
+      <a class="cat-name" href="/categories/{{ child.id }}">{{ child.name }}</a>
+      <span class="cat-uses">{{ child.uses }}</span>
+      <span class="cat-bar"><span class="cat-bar-fill" data-uses="{{ child.uses }}"></span></span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</section>
+
+<p class="foot-link">
+  {% if archived_view %}
+  <a href="/categories">Hide archived</a>
+  {% else %}
+  <a href="/categories?archived=1">Show archived</a>
+  {% endif %}
+</p>
+
+{% if archived_view and flat %}
+<section class="card">
+  <h2 class="card-title">Archived</h2>
+  <ul class="history">
+    {% for c in flat %}
+    <li>
+      <span>{{ c.name }}</span>
+      <span class="trash-actions">
+        <span class="muted">{{ c.uses }} uses</span>
+        <form method="post" action="/categories/{{ c.id }}/restore">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="btn btn-ghost btn-sm" type="submit">Restore</button>
+        </form>
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

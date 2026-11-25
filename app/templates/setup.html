@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Set up · {{ app_name }}{% endblock %}
+{% block chrome %}{% endblock %}
+{% block mainclass %}auth-wrap{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+<section class="card auth-card">
+  <img class="auth-mark" src="/static/img/banana-mark.png" alt="" width="56" height="56">
+
+  <h1 class="auth-title">Set up the Stand</h1>
+  <p class="auth-tag">One household, one login. This page disappears once it's done.</p>
+  <p class="auth-version">v{{ version }}</p>
+
+  {% if error %}
+  <div class="alert alert-error" role="alert">{{ error }}</div>
+  {% endif %}
+
+  <form class="auth-form" method="post" action="/setup" novalidate>
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field">
+      <label for="household">Household name</label>
+      <input class="input" id="household" name="household" type="text" required
+             value="{{ form.household if form else 'The Banana Stand' }}" autocomplete="organization">
+    </div>
+    <div class="field">
+      <label for="name">Your name</label>
+      <input class="input" id="name" name="name" type="text" required maxlength="40"
+             value="{{ form.name if form else '' }}" autocomplete="username" placeholder="Alex">
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input class="input" id="password" name="password" type="password" required
+             autocomplete="new-password" minlength="8" placeholder="At least 8 characters">
+    </div>
+    <div class="field">
+      <label for="password2">Confirm password</label>
+      <input class="input" id="password2" name="password2" type="password" required
+             autocomplete="new-password" minlength="8" placeholder="Type it again">
+    </div>
+    <div class="auth-actions">
+      <button class="btn btn-primary" type="submit">Create household</button>
+    </div>
+    <p class="auth-alt">Stored on this machine only. No cloud account, no telemetry.</p>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Budget · {{ g.label }}{% endblock %}
+
+{% block content %}
+{% include "_plan_nav.html" %}
+
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Plan</p>
+    <h1>{{ g.label }}</h1>
+    <p class="sub">
+      <a href="/budget?month={{ g.prev }}">← Previous</a>
+      {% if not g.is_current %} · <a href="/budget">This month</a>{% endif %}
+      · <a href="/budget?month={{ g.next }}">Next →</a>
+    </p>
+  </div>
+  <div class="head-actions">
+    <form method="post" action="/budget/copy-previous">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="month" value="{{ g.month }}">
+      <input type="hidden" name="enabled" value="{{ '' if copy_previous else '1' }}">
+      <button class="btn btn-ghost toggle-pill{{ ' is-on' if copy_previous }}" type="submit"
+              aria-pressed="{{ 'true' if copy_previous else 'false' }}"
+              title="A new month starts from last month's plan">
+        Copy last month
+        <span class="toggle-state">{{ 'On' if copy_previous else 'Off' }}</span>
+      </button>
+    </form>
+    <form method="post" action="/budget/auto">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="month" value="{{ g.month }}">
+      <button class="btn btn-ghost" type="submit">Auto-budget</button>
+    </form>
+  </div>
+</div>
+
+{% if copied %}<div class="alert alert-ok">Copied {{ copied }} budget{{ '' if copied == 1 else 's' }} from last month.</div>{% endif %}
+{% if auto %}<div class="alert alert-ok">Set {{ auto }} budget{{ '' if auto == 1 else 's' }} from the last three months of spending.</div>{% endif %}
+{% if request.query_params.get('error') %}<div class="alert alert-error" role="alert">Session expired. Try again.</div>{% endif %}
+
+{% if not g.rows or not safe.has_budgets %}
+<section class="card empty-card">
+  <h2>No budgets yet for {{ g.label }}</h2>
+  <p class="sub">Start from last month's plan, or let the last three months of spending set the envelope.</p>
+  <div class="form-actions">
+    <form method="post" action="/budget/auto">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="month" value="{{ g.month }}">
+      <button class="btn btn-primary" type="submit">Auto-budget from history</button>
+    </form>
+    <form method="post" action="/budget/copy">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="month" value="{{ g.month }}">
+      <button class="btn btn-ghost" type="submit">Copy last month</button>
+    </form>
+  </div>
+</section>
+{% endif %}
+
+<form method="post" action="/budget/save" class="budget-form" data-budget-form>
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="month" value="{{ g.month }}">
+
+  <section class="totals budget-totals">
+    <div class="total">
+      <p class="label">Expected income</p>
+      <button class="total-figure figure-edit" type="button" data-income-display
+              aria-label="Expected income — click to edit">{{ g.expected_income_cents|money }}</button>
+      <input class="figure-input" type="text" inputmode="decimal" name="expected_income"
+             value="{{ '%.2f'|format(g.expected_income_cents / 100) if g.expected_income_cents else '' }}"
+             placeholder="0.00" aria-label="Expected income" data-income-input hidden>
+      {% if g.auto_income %}<p class="field-hint">{{ g.income_note }}</p>{% endif %}
+    </div>
+    <div class="total">
+      <p class="label">Budgeted</p>
+      <p class="total-figure" data-budget-budgeted>{{ g.budgeted_cents|money }}</p>
+      {% if g.carry_cents %}<p class="field-hint">+{{ g.carry_cents|money }} rolled in</p>{% endif %}
+    </div>
+    <div class="total">
+      <p class="label">Spent</p>
+      <p class="total-figure" data-budget-spent>{{ g.all_spent_cents|money }}</p>
+    </div>
+    <div class="total">
+      <p class="label">Left to budget</p>
+      <p class="total-figure" data-budget-left>{{ g.left_to_budget_cents|money if g.left_to_budget_cents is not none else '—' }}</p>
+    </div>
+  </section>
+
+  <section class="budget-table">
+    <div class="budget-head">
+      <span>Category</span><span>Budget</span><span>Spent</span><span>Remaining</span><span></span>
+    </div>
+    {% for r in g.rows %}
+    <div class="budget-row {% if r.remaining_cents < 0 %}is-over{% endif %}">
+      <span class="budget-name">
+        {{ r.name }}
+        {% if r.carry_cents %}<span class="chip chip-muted">carry {{ r.carry_cents|money }}</span>{% endif %}
+      </span>
+      <span class="budget-input">
+        <label class="sr-only" for="cat-{{ r.id }}">Budget for {{ r.name }}</label>
+        <input class="input" id="cat-{{ r.id }}" name="cat_{{ r.id }}" inputmode="decimal"
+               value="{{ '%.2f'|format(r.budget_cents / 100) if r.has_row else '' }}" placeholder="0.00"
+               data-budget-money>
+      </span>
+      <span class="budget-spent">{{ r.spent_cents|money }}</span>
+      <span class="budget-left">
+        {{ r.remaining_cents|money }}
+        <span class="mini-bar"><span class="mini-fill" data-pct="{{ r.pct if r.pct is not none else 0 }}"></span></span>
+      </span>
+      <span class="budget-hide">
+        <button class="icon-btn" type="submit" formaction="/budget/hide" formnovalidate
+                name="category_id" value="{{ r.id }}"
+                aria-label="Remove {{ r.name }} from the budget" title="Remove from budget">×</button>
+      </span>
+    </div>
+    {% endfor %}
+  </section>
+
+  <button class="sr-only" type="submit">Save budgets</button>
+</form>
+
+{% if hidden_cats %}
+<details class="card budget-hidden">
+  <summary class="card-title">Hidden from budget ({{ hidden_cats|length }})</summary>
+  <p class="sub">These categories still exist in the ledger — they just don't take a budget line. Restore one to put it back on this page.</p>
+  <ul class="hidden-list">
+    {% for c in hidden_cats %}
+    <li>
+      <span>{{ c.name }}</span>
+      <form method="post" action="/budget/unhide">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input type="hidden" name="month" value="{{ g.month }}">
+        <input type="hidden" name="category_id" value="{{ c.id }}">
+        <button class="btn btn-ghost btn-sm" type="submit">Restore</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+</details>
+{% endif %}
+{% endblock %}

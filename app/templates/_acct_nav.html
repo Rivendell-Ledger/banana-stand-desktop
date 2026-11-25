@@ -1,0 +1,7 @@
+<nav class="subnav" aria-label="Accounts">
+  {% set path = request.url.path %}
+  <a href="/accounts" class="{{ 'active' if path.startswith('/accounts') and not path.startswith('/accounts/credit-cards') else '' }}">Accounts</a>
+  <a href="/portfolio" class="{{ 'active' if path.startswith('/portfolio') else '' }}">Portfolio</a>
+  <a href="/performance" class="{{ 'active' if path.startswith('/performance') else '' }}">Performance</a>
+  <a href="/accounts/credit-cards" class="{{ 'active' if path.startswith('/accounts/credit-cards') else '' }}">Credit cards</a>
+</nav>

@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Map columns · {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow"><a href="/import">Import</a> · {{ filename }}</p>
+    <h1>Map the columns</h1>
+    <p class="sub">{{ data.rows|length }} rows · {{ data.columns }} columns · delimiter “{{ data.delimiter }}”</p>
+  </div>
+</div>
+
+<section class="card">
+  <h2 class="card-title">First rows</h2>
+  <div class="csv-scroll">
+    <table class="csv-table">
+      <thead>
+        <tr>{% for h in data.header %}<th>{{ h }}</th>{% endfor %}</tr>
+      </thead>
+      <tbody>
+        {% for row in data.rows[:5] %}
+        <tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <form method="post" action="/import/preview" class="form-grid">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="token" value="{{ token }}">
+    <input type="hidden" name="account_id" value="{{ account.id }}">
+    <input type="hidden" name="filename" value="{{ filename }}">
+
+    {% set cols = range(data.columns) %}
+    <div class="field">
+      <label for="m-date">Date column</label>
+      <select class="input" id="m-date" name="date_col" required>
+        {% for i in cols %}<option value="{{ i }}" {% if mapping.date_col == i %}selected{% endif %}>{{ data.header[i] if data.header|length > i else 'Column ' ~ (i + 1) }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="m-format">Date format</label>
+      <select class="input" id="m-format" name="date_format">
+        {% for f in ['%m/%d/%Y', '%Y-%m-%d', '%m/%d/%y', '%d/%m/%Y', '%m-%d-%Y'] %}
+        <option value="{{ f }}" {% if mapping.date_format == f %}selected{% endif %}>{{ f }}</option>
+        {% endfor %}
+      </select>
+      <p class="field-hint">Guessed from the first rows.</p>
+    </div>
+    <div class="field">
+      <label for="m-desc">Description / merchant</label>
+      <select class="input" id="m-desc" name="desc_col" required>
+        {% for i in cols %}<option value="{{ i }}" {% if mapping.desc_col == i %}selected{% endif %}>{{ data.header[i] if data.header|length > i else 'Column ' ~ (i + 1) }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="m-amount">Amount column <span class="optional">or use debit/credit</span></label>
+      <select class="input" id="m-amount" name="amount_col">
+        <option value="">— none —</option>
+        {% for i in cols %}<option value="{{ i }}" {% if mapping.amount_col == i %}selected{% endif %}>{{ data.header[i] if data.header|length > i else 'Column ' ~ (i + 1) }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="m-debit">Debit column <span class="optional">optional</span></label>
+      <select class="input" id="m-debit" name="debit_col">
+        <option value="">— none —</option>
+        {% for i in cols %}<option value="{{ i }}" {% if mapping.debit_col == i %}selected{% endif %}>{{ data.header[i] if data.header|length > i else 'Column ' ~ (i + 1) }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="m-credit">Credit column <span class="optional">optional</span></label>
+      <select class="input" id="m-credit" name="credit_col">
+        <option value="">— none —</option>
+        {% for i in cols %}<option value="{{ i }}" {% if mapping.credit_col == i %}selected{% endif %}>{{ data.header[i] if data.header|length > i else 'Column ' ~ (i + 1) }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="m-cat">Category column <span class="optional">optional</span></label>
+      <select class="input" id="m-cat" name="category_col">
+        <option value="">— none —</option>
+        {% for i in cols %}<option value="{{ i }}" {% if mapping.category_col == i %}selected{% endif %}>{{ data.header[i] if data.header|length > i else 'Column ' ~ (i + 1) }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="m-memo">Memo column <span class="optional">optional</span></label>
+      <select class="input" id="m-memo" name="memo_col">
+        <option value="">— none —</option>
+        {% for i in cols %}<option value="{{ i }}" {% if mapping.memo_col == i %}selected{% endif %}>{{ data.header[i] if data.header|length > i else 'Column ' ~ (i + 1) }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="m-profile">Save this mapping as <span class="optional">optional</span></label>
+      <input class="input" id="m-profile" name="profile_name" placeholder="Chase Sapphire CSV">
+    </div>
+
+    <label class="check field-wide">
+      <input type="checkbox" name="invert_sign" {% if mapping.invert_sign %}checked{% endif %}>
+      <span>Flip the sign (some issuers export spending as positive)</span>
+    </label>
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Preview import</button>
+      <a class="btn btn-ghost" href="/import">Start over</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

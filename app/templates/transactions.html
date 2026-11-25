@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+{% block title %}Transactions · {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Ledger</p>
+    <h1>Transactions</h1>
+  </div>
+  <div class="head-actions">
+    <a class="btn btn-ghost btn-sm" href="/import">Import CSV</a>
+    <button class="btn btn-ghost btn-sm" type="button" data-toggle-panel="filters">Filters{% if filters %} <span class="count">{{ filters|length }}</span>{% endif %}</button>
+    <button class="btn btn-ghost btn-sm" type="button" data-toggle-panel="new-txn">New Txn</button>
+  </div>
+</div>
+
+{% if request.query_params.get('imported') %}
+<div class="alert alert-ok">Imported {{ request.query_params.get('imported') }} transactions{% if request.query_params.get('dupes') %} · {{ request.query_params.get('dupes') }} duplicates skipped{% endif %}.</div>
+{% endif %}
+{% if added %}
+<div class="alert alert-ok">Added. The ledger is listening.</div>
+{% endif %}
+{% if request.query_params.get('deleted') %}
+<div class="alert alert-ok undo-alert">
+  <span>Transaction deleted.</span>
+  <form method="post" action="/transactions/{{ request.query_params.get('deleted') }}/restore">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="next" value="/transactions?{{ qs }}">
+    <button class="btn btn-ghost btn-sm" type="submit">Undo</button>
+  </form>
+</div>
+{% endif %}
+{% if request.query_params.get('undo') %}
+<div class="alert alert-ok undo-alert">
+  <span>{{ request.query_params.get('bulk') }} transaction{{ '' if request.query_params.get('bulk') == '1' else 's' }} deleted.</span>
+  <form method="post" action="/transactions/bulk">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="op" value="restore">
+    <input type="hidden" name="next" value="/transactions?{{ qs }}">
+    {% for id in (request.query_params.get('ids') or '').split(',') if id %}
+    <input type="hidden" name="ids" value="{{ id }}">
+    {% endfor %}
+    <button class="btn btn-ghost btn-sm" type="submit">Undo</button>
+  </form>
+</div>
+{% elif request.query_params.get('bulk') %}
+<div class="alert alert-ok">{{ request.query_params.get('bulk') }} transaction{{ '' if request.query_params.get('bulk') == '1' else 's' }} updated.</div>
+{% endif %}
+{% if request.query_params.get('error') %}
+<div class="alert alert-error" role="alert">That entry needs an account, a merchant, and an amount.</div>
+{% endif %}
+
+<section class="card quick-add" id="new-txn" {% if result.total %}hidden{% endif %}>
+  <h2 class="card-title">New transaction</h2>
+  <form method="post" action="/transactions" class="form-grid" data-new-txn>
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field">
+        <label for="qa-merchant">Merchant</label>
+        <input class="input" id="qa-merchant" name="merchant" required placeholder="Trader Joe's" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="qa-amount">Amount</label>
+        <input class="input" id="qa-amount" name="amount" inputmode="decimal" required placeholder="0.00">
+      </div>
+      <div class="field">
+        <label for="qa-direction">Direction</label>
+        <select class="input" id="qa-direction" name="direction">
+          <option value="out">Money out</option>
+          <option value="in">Money in</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="qa-date">Date</label>
+        <input class="input" id="qa-date" name="posted_on" type="date" value="{{ today }}">
+      </div>
+      <div class="field">
+        <label for="qa-account">Account</label>
+        <select class="input" id="qa-account" name="account_id" required>
+          {% for a in accounts %}
+          <option value="{{ a.id }}" {% if a.id == default_account %}selected{% endif %}>{{ a.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="qa-category">Category</label>
+        <select class="input" id="qa-category" name="category_id">
+          {% for c in categories if c.kind != 'transfer' %}
+          <option value="{{ c.id }}" {% if c.name == 'Uncategorized' %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit" {% if not accounts %}disabled{% endif %}>Add transaction</button>
+        {% if not accounts %}<span class="hint">Add an account first.</span>{% endif %}
+      </div>
+  </form>
+</section>
+
+<details class="filter-wrap" id="filters">
+  <summary class="sr-only">Filters</summary>
+  <form method="get" action="/transactions" class="filter-bar">
+    <div class="field">
+      <label for="f-q">Search</label>
+      <input class="input" id="f-q" name="q" value="{{ filters.q or '' }}" placeholder="merchant or note" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="f-account">Account</label>
+      <select class="input" id="f-account" name="account_id">
+        <option value="">All accounts</option>
+        {% for a in accounts %}
+        <option value="{{ a.id }}" {% if filters.account_id == a.id|string %}selected{% endif %}>{{ a.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-category">Category</label>
+      <select class="input" id="f-category" name="category_id">
+        <option value="">All categories</option>
+        <option value="none" {% if filters.category_id == 'none' %}selected{% endif %}>Needs a category</option>
+        {% for c in filter_categories %}
+        <option value="{{ c.id }}" {% if filters.category_id == c.id|string %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-tag">Tag</label>
+      <select class="input" id="f-tag" name="tag">
+        <option value="">Any tag</option>
+        {% for g in tags %}
+        <option value="{{ g.name }}" {% if filters.tag == g.name %}selected{% endif %}>#{{ g.name }} ({{ g.n }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-kind">Kind</label>
+      <select class="input" id="f-kind" name="kind">
+        <option value="">Everything</option>
+        <option value="expense" {% if filters.kind == 'expense' %}selected{% endif %}>Expenses</option>
+        <option value="income" {% if filters.kind == 'income' %}selected{% endif %}>Income</option>
+        <option value="transfer" {% if filters.kind == 'transfer' %}selected{% endif %}>Transfers</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-from">From</label>
+      <input class="input" id="f-from" name="from" type="date" value="{{ filters.from or '' }}">
+    </div>
+    <div class="field">
+      <label for="f-to">To</label>
+      <input class="input" id="f-to" name="to" type="date" value="{{ filters.to or today }}">
+    </div>
+    <div class="field">
+      <label for="f-pending">Status</label>
+      <select class="input" id="f-pending" name="pending">
+        <option value="">Posted + pending</option>
+        <option value="1" {% if filters.pending == '1' %}selected{% endif %}>Pending only</option>
+        <option value="0" {% if filters.pending == '0' %}selected{% endif %}>Posted only</option>
+      </select>
+    </div>
+    <div class="form-actions filter-actions">
+      <button class="btn btn-primary" type="submit">Apply</button>
+      <a class="btn btn-ghost" href="/transactions">Clear</a>
+    </div>
+  </form>
+</details>
+
+{% set out_cents = spend.total_cents if spend else (0 - summary.out) %}
+{% set in_cents = spend.income_cents if spend else summary.in %}
+{% set net_cents = spend.net_cents if spend else summary.net %}
+<section class="ledger-summary">
+  <span class="stat">
+    <span class="stat-label">Transactions</span>
+    <span class="stat-value">{{ summary.count }}</span>
+  </span>
+  <span class="stat stat-out">
+    <span class="stat-label">Out</span>
+    <span class="stat-value">{{ out_cents|money }}{% if filters and spend and spend.pct_income is not none %} <span class="stat-note">({{ spend.pct_income }}%)</span>{% endif %}</span>
+  </span>
+  <span class="stat stat-in">
+    <span class="stat-label">In</span>
+    <span class="stat-value">{{ in_cents|money }}</span>
+  </span>
+  <span class="stat">
+    <span class="stat-label">Net</span>
+    <span class="stat-value {{ 'pos' if net_cents >= 0 else 'neg' }}">{{ net_cents|money(signed=True) }}</span>
+  </span>
+</section>
+
+{% if spend %}
+<section class="card spend-card">
+  <div class="fc-month-head">
+    <h2 class="card-title">Cash Flow</h2>
+    <div class="chart-tabs">
+      {% for key, label in [('weeks', 'Weeks'), ('months', 'Months'), ('years', 'Years')] %}
+      <a class="chart-tab{% if spend.group == key %} is-active{% endif %}"
+         href="/transactions?{% if qs %}{{ qs }}&{% endif %}group={{ key }}">{{ label }}</a>
+      {% endfor %}
+    </div>
+  </div>
+  {% if spend.split %}
+  <div class="flow-plot" role="img" aria-label="Money in and out by {{ spend.group }}">
+    {% for b in spend.buckets %}
+    <div class="flow-col" tabindex="0" data-label="{{ b.label }}"
+         data-value="{{ b.in_cents|money_plain }} in · {{ b.cents|money_plain }} out{% if b.pct_income is not none %} · {{ b.pct_income }}% of income{% endif %}">
+      <span class="flow-half top"><span class="flow-bar in" data-pct="{{ b.in_pct }}"></span></span>
+      <span class="flow-half bottom"><span class="flow-bar out" data-pct="{{ b.pct }}"></span></span>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="flow-legend">
+    <span><i class="dot in"></i>In</span>
+    <span><i class="dot out"></i>Out</span>
+    <span class="muted">tap a bar for its totals</span>
+  </div>
+  {% else %}
+  <div class="spend-plot" role="img" aria-label="Spending by {{ spend.group }}">
+    {% for b in spend.buckets %}<span class="spend-col" tabindex="0" data-label="{{ b.label }}" data-value="{{ b.cents|money_plain }}"><span class="spend-bar" data-pct="{{ b.pct }}" title="{{ b.label }} · {{ b.cents|money_plain }}"></span></span>{% endfor %}
+  </div>
+  <div class="flow-legend"><span class="muted">tap a bar for its total</span></div>
+  {% endif %}
+  <div class="spend-axis" aria-hidden="true">
+    {% for b in spend.buckets %}<span class="spend-tick">{% if b.show_label %}{{ b.label }}{% endif %}</span>{% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if result.rows %}
+<ul class="txn-list" id="txn-list">
+  <li class="txn-head">
+    <span class="txn-date">Date</span>
+    <span class="txn-merchant">Merchant</span>
+    <span class="txn-category">Category</span>
+    <span class="txn-account">Account</span>
+    <span class="txn-amount">Amount</span>
+    <span class="txn-open"></span>
+  </li>
+  {% for t in result.rows %}
+  <li class="txn {% if t.is_pending %}is-pending{% endif %} {% if t.excluded %}is-excluded{% endif %}" data-id="{{ t.id }}">
+    <span class="txn-date">{{ t.posted_on|datefmt }}</span>
+    <span class="txn-merchant">
+      <button class="cell" type="button" data-edit="merchant" data-value="{{ t.merchant }}">{{ t.merchant }}</button>
+      <span class="txn-badges">
+        {% if t.is_pending %}<span class="chip chip-pending">pending</span>{% endif %}
+        {% if t.is_transfer %}<span class="chip">transfer</span>{% endif %}
+        {% if t.excluded %}<span class="chip chip-muted">excluded</span>{% endif %}
+        {% for g in t.tags %}<span class="chip chip-tag">#{{ g }}</span>{% endfor %}
+      </span>
+    </span>
+    <span class="txn-category">
+      {% if t.split_count %}
+      <a class="cell cell-link" href="/transactions/{{ t.id }}">Split · {{ t.split_count }}</a>
+      {% else %}
+      <button class="cell cell-muted" type="button" data-edit="category_id" data-value="{{ t.category_id or '' }}">{{ t.category_name or 'Uncategorized' }}</button>
+      {% endif %}
+    </span>
+    <span class="txn-account">{{ t.account_name }}</span>
+    <span class="txn-amount {{ 'pos' if t.amount_cents > 0 else 'neg' }}">
+      <button class="cell cell-money" type="button" data-edit="amount_cents" data-value="{{ '%.2f'|format(t.amount_cents / 100) }}">{{ t.amount_cents|money }}</button>
+    </span>
+    <a class="txn-open" href="/transactions/{{ t.id }}" aria-label="Edit {{ t.merchant }}" title="Edit">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+
+{% if result.pages > 1 %}
+<nav class="pager">
+  {% if result.page > 0 %}
+  <a class="btn btn-ghost btn-sm" href="/transactions?{{ qs }}{% if qs %}&{% endif %}page={{ result.page - 1 }}">Previous</a>
+  {% else %}<span></span>{% endif %}
+  <span class="hint">Page {{ result.page + 1 }} of {{ result.pages }}</span>
+  {% if result.page + 1 < result.pages %}
+  <a class="btn btn-ghost btn-sm" href="/transactions?{{ qs }}{% if qs %}&{% endif %}page={{ result.page + 1 }}">Next</a>
+  {% else %}<span></span>{% endif %}
+</nav>
+{% endif %}
+
+{% else %}
+<section class="card empty-card">
+  <h2>{% if filters %}Nothing matches{% else %}The ledger is empty{% endif %}</h2>
+  {% if filters %}
+  <p class="sub">No transactions fit those filters. <a href="/transactions">Clear them</a> and look again.</p>
+  {% else %}
+  <p class="sub">Add the first one above, or import a CSV from your bank.</p>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Connect your banks · {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Setup · step 2 of 3</p>
+    <h1>Connect your banks</h1>
+  </div>
+</div>
+
+{% if saved %}<div class="alert alert-ok">Keys saved and verified with Plaid. You can connect a bank now.</div>{% endif %}
+{% if connected %}<div class="alert alert-ok">Bank connected. Transactions will start arriving in the ledger.</div>{% endif %}
+{% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
+
+<section class="card">
+  <h2 class="card-title">Get your Plaid keys</h2>
+  <p class="sub">Plaid is what reads your bank. It has a free personal plan, and your keys stay on this computer.</p>
+  <ol class="steps">
+    <li><span class="step-n">1</span><span>Open <strong>dashboard.plaid.com</strong> and create a developer account. Choose <strong>Personal use</strong> — not Business, not App user.</span></li>
+    <li><span class="step-n">2</span><span>When it asks for a website, any valid URL you control works — a personal site, a blog, or your <strong>LinkedIn profile</strong>.</span></li>
+    <li><span class="step-n">3</span><span>Open <strong>Developers → Keys</strong> and copy the <strong>Client ID</strong> and the <strong>production secret</strong>.</span></li>
+    <li><span class="step-n">4</span><span>Paste both below. The app tests them with Plaid before saving.</span></li>
+  </ol>
+  <p class="field-hint">Never invent a company or an app name on the Plaid form. Personal use is the correct answer. The website field is required.</p>
+</section>
+
+{% if not plaid_ready %}
+<section class="card">
+  <h2 class="card-title">Paste your keys</h2>
+  <form method="post" action="/setup/plaid" class="auth-form" novalidate>
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field">
+      <label for="client_id">Client ID</label>
+      <input class="input" id="client_id" name="client_id" type="text" autocomplete="off"
+             spellcheck="false" required value="{{ form.client_id if form else '' }}">
+    </div>
+    <div class="field">
+      <label for="secret">Secret</label>
+      <input class="input" id="secret" name="secret" type="password" autocomplete="off"
+             spellcheck="false" required>
+      <span class="field-hint">Use the <strong>production</strong> secret shown beside the Client ID.</span>
+    </div>
+    <div class="field">
+      <label for="environment">Environment</label>
+      <select class="input" id="environment" name="environment">
+        <option value="production" selected>Production (real banks — Trial plan)</option>
+        <option value="sandbox">Sandbox (test data only)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="max_items">Item slots</label>
+      <input class="input" id="max_items" name="max_items" type="number" min="1" max="200"
+             value="{{ form.max_items if form and form.max_items else 10 }}">
+      <span class="field-hint">The number of connections your Plaid plan grants. The Trial includes <strong>10</strong>.</span>
+    </div>
+    <label class="check">
+      <input type="checkbox" name="ack" value="1" required>
+      <span>I understand these keys connect to real financial institutions.</span>
+    </label>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Test and save</button>
+    </div>
+  </form>
+</section>
+{% else %}
+<section class="card">
+  <h2 class="card-title">Bank connections</h2>
+  <div class="conn-head">
+    <span class="chip {{ 'chip-pending' if plaid_env == 'sandbox' else 'chip-tag' }}">{{ plaid_env }}</span>
+    <span class="sub">{{ slots_used }} of {{ slots_max }} Item slots used</span>
+  </div>
+  {% if plaid_env == 'sandbox' %}
+  <div class="alert alert-info">Sandbox mode: use <code>user_good</code> / <code>pass_good</code> in Link. No real bank is touched.</div>
+  {% endif %}
+  <div class="form-actions">
+    <button class="btn btn-primary" type="button" data-plaid-link data-plaid-mode="new"
+            {% if slots_used >= slots_max %}disabled{% endif %}>Connect a bank</button>
+    {% if slots_used >= slots_max %}<span class="hint">All 10 Trial slots are used. Removing a bank does not free one — Plaid's Trial cap is permanent. Upgrade the plan or import CSV instead.</span>{% endif %}
+  </div>
+  <p class="alert" id="plaid-status" hidden></p>
+  <p class="field-hint">Adding a bank you already connected uses another permanent Trial slot. Reconnect an existing bank from Settings instead.</p>
+  <p class="field-hint">Plaid may show your saved accounts and text you a code — that is its returning-user shortcut. Tap <strong>Not you?</strong> to reach the bank list.</p>
+  <p class="field-hint">Connect as many institutions as you need. You can add more later in Settings.</p>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2 class="card-title">Next</h2>
+  <form method="post" action="/setup/connect/done">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Continue</button>
+      <span class="hint">{{ 'Skip for now — you can connect banks later in Settings.' if not plaid_ready else 'You can add more banks later in Settings.' }}</span>
+    </div>
+  </form>
+</section>
+{% endblock %}
+
+{% block scripts %}
+{% if plaid_ready %}
+<script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+<script src="/static/js/plaid-link.js?v={{ version }}"></script>
+{% endif %}
+{% endblock %}

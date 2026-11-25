@@ -1,0 +1,108 @@
+/* Banana Stand design tokens — source of truth for color, type, space. */
+@font-face {
+  font-family: "Inter";
+  src: url("/static/fonts/inter-var.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --r-card: 16px;
+  --r-input: 10px;
+  --r-pill: 999px;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --fs-display: 44px;
+  --fs-h1: 28px;
+  --fs-h2: 20px;
+  --fs-body: 15px;
+  --fs-sm: 13px;
+  --fs-xs: 12px;
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 240ms;
+  --ease: cubic-bezier(.2, .7, .3, 1);
+}
+
+:root[data-theme="dark"] {
+  --bg:          #0B120F;
+  --bg-elev:     #0E1713;
+  --surface:     #111A16;
+  --surface-2:   #16221C;
+  --surface-3:   #1D2C24;
+  --border:      #24352C;
+  --border-soft: #1B2A22;
+
+  --ink:         #EEF3EE;
+  --ink-2:       #C6D4CA;
+  --muted:       #93A79C;
+  --faint:       #6B8075;
+
+  --accent:      #FFD23F;
+  --accent-text: #FFD23F;
+  --accent-ink:  #1A1405;
+  --accent-2:    #3DDC97;
+  --positive:    #3DDC97;
+  --negative:    #FF7A6B;
+  --brown:       #B98157;
+  --warning:     #FF9F45;
+  --info:        #7AA2FF;
+  --chart-1:     #FFD23F;
+  --chart-2:     #3DDC97;
+  --chart-3:     #7AA2FF;
+  --chart-4:     #FF9F45;
+  --chart-5:     #B794F6;
+  --chart-6:     #FF7A9C;
+  --chart-7:     #A3C94A;
+  --chart-8:     #8FA3B0;
+
+  --grid:        rgba(147, 167, 156, .14);
+  --shadow:      0 10px 30px rgba(0, 0, 0, .5);
+  --glow:        0 0 0 1px rgba(255, 210, 63, .4), 0 8px 24px rgba(255, 210, 63, .12);
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg:          #FBF8EF;
+  --bg-elev:     #FFFFFF;
+  --surface:     #FFFFFF;
+  --surface-2:   #F3EFE2;
+  --surface-3:   #E9E3D2;
+  --border:      #DFD8C6;
+  --border-soft: #EDE7D8;
+
+  --ink:         #121711;
+  --ink-2:       #3A473D;
+  --muted:       #61756A;
+  --faint:       #86988D;
+
+  --accent:      #FFD23F;
+  --accent-text: #7A5C00;
+  --accent-ink:  #1A1405;
+  --accent-2:    #0E8C74;
+  --positive:    #12855B;
+  --negative:    #C8402F;
+  --brown:       #B98157;
+  --warning:     #A9611A;
+  --info:        #2C6BD1;
+  --chart-1:     #D9A400;
+  --chart-2:     #0E8C74;
+  --chart-3:     #2C6BD1;
+  --chart-4:     #C4652E;
+  --chart-5:     #7C4DD6;
+  --chart-6:     #C2426B;
+  --chart-7:     #6B8E23;
+  --chart-8:     #5B6B7A;
+
+  --grid:        rgba(97, 117, 106, .16);
+  --shadow:      0 10px 30px rgba(60, 45, 20, .10);
+  --glow:        0 0 0 1px rgba(122, 92, 0, .35), 0 8px 24px rgba(122, 92, 0, .10);
+  color-scheme: light;
+}

@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+{% block title %}Portfolio · {{ app_name }}{% endblock %}
+
+{% block content %}
+{% include "_acct_nav.html" %}
+
+<div class="page-head">
+  <div>
+    <h1>Portfolio</h1>
+    {% set synced = rows|selectattr('source', 'equalto', 'plaid')|list|length %}
+    <p class="sub">{{ rows|length }} holding{{ '' if rows|length == 1 else 's' }} ·
+      {% if synced %}{{ synced }} synced from your brokerage{% else %}prices are manual until the brokerage feed lands{% endif %}.</p>
+  </div>
+  <div class="head-actions">
+    <a class="btn btn-primary" href="#add-holding">Add holding</a>
+  </div>
+</div>
+
+{% if saved %}<div class="alert alert-ok">Saved.</div>{% endif %}
+{% if request.query_params.get('error') %}<div class="alert alert-error" role="alert">{{ request.query_params.get('error')|replace('+', ' ') }}</div>{% endif %}
+
+{% if not rows %}
+<section class="card empty-card">
+  <h2>No holdings yet</h2>
+  <p class="sub">Add what you own — symbol, shares, what you paid, what it is worth today. The account balance follows the holdings, so nothing gets counted twice.</p>
+</section>
+{% endif %}
+
+<section class="totals">
+  <div class="total">
+    <p class="label">Value</p>
+    <p class="total-figure">{{ totals.value_cents|money }}</p>
+  </div>
+  <div class="total">
+    <p class="label">Cost basis</p>
+    <p class="total-figure">{{ totals.cost_cents|money }}</p>
+  </div>
+  <div class="total">
+    <p class="label">Unrealised</p>
+    <p class="total-figure {{ 'pos' if totals.gain_cents >= 0 else 'neg' }}">{{ totals.gain_cents|money(signed=True) }}</p>
+    {% if totals.gain_pct is not none %}<p class="field-hint">{{ '%.1f'|format(totals.gain_pct) }}%</p>{% endif %}
+  </div>
+</section>
+
+{% if by_kind %}
+<section class="card">
+  <h2 class="card-title">Allocation</h2>
+  <div class="alloc-bar" role="img" aria-label="Allocation by asset type">
+    {% for b in by_kind %}
+    <span class="alloc-seg" data-pct="{{ '%.2f'|format(b.pct) }}" title="{{ b.label }} {{ '%.1f'|format(b.pct) }}%"></span>
+    {% endfor %}
+  </div>
+  <ul class="alloc-legend">
+    {% for b in by_kind %}
+    <li><span class="alloc-dot" data-i="{{ loop.index0 }}"></span>{{ b.label }}<span class="muted">{{ '%.0f'|format(b.pct) }}% · {{ b.value_cents|money }}</span></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{% if rows %}
+<form method="post" action="/portfolio/holdings/save" class="card holdings-card" data-holdings-form>
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="hold-head">
+    <span></span><span>Symbol</span><span>Shares</span><span>Price</span><span>Value</span><span>Gain</span><span></span>
+  </div>
+  {% for group in groups %}
+  <details class="hold-group-wrap" open>
+  <summary class="hold-group">
+    <span class="hold-group-name">{{ group.name }}</span>
+    <span class="hold-group-val">{{ group.value_cents|money }}
+      {% if group.has_gain %}<span class="muted">{{ group.gain_cents|money(signed=True) }}</span>{% endif %}</span>
+  </summary>
+  {% for r in group.rows %}
+  {% if r.is_account_value %}
+  <div class="hold-row hold-row-account">
+    <span class="hold-kind">{{ r.kind_label }}</span>
+    <span class="hold-sym"><strong>{{ r.account_name }}</strong>
+      <span class="muted">{{ r.kind_label }} balance</span></span>
+    <span class="muted">—</span>
+    <span class="muted">—</span>
+    <span class="hold-val">{{ r.value_cents|money }}</span>
+    <span class="hold-gain muted">—</span>
+    <span></span>
+  </div>
+  {% else %}
+  <div class="hold-row">
+    <span class="hold-kind">{{ r.kind_label }}</span>
+    <span class="hold-sym">
+      <strong>{{ r.symbol }}</strong>
+      <span class="muted">{{ r.security_name }}</span>
+    </span>
+    <span>{% if r.source == 'plaid' %}<span class="muted">{{ '%.6g'|format(r.quantity) }}</span>
+      {% else %}<input class="input" name="qty_{{ r.id }}" value="{{ '%.6g'|format(r.quantity) }}" inputmode="decimal" aria-label="Shares of {{ r.symbol }}">{% endif %}</span>
+    <span>{% if r.source == 'plaid' %}<span class="muted">{{ '{:,.2f}'.format(r.price_cents / 100) }}</span>
+      {% else %}<input class="input" name="price_{{ r.id }}" value="{{ '{:,.2f}'.format(r.price_cents / 100) }}" inputmode="decimal" aria-label="Price of {{ r.symbol }}">{% endif %}</span>
+    <span class="hold-val">{{ r.value_cents|money }}</span>
+    <span class="hold-gain {{ 'pos' if r.gain_cents >= 0 else 'neg' }}">
+      {{ r.gain_cents|money(signed=True) }}
+      {% if r.gain_pct is not none %}<span class="muted">{{ '%+.1f'|format(r.gain_pct) }}%</span>{% endif %}
+    </span>
+    <span>
+      {% if r.source != 'plaid' %}
+      <button class="btn btn-ghost btn-sm danger" type="submit" formaction="/portfolio/holdings/{{ r.id }}/delete"
+              formnovalidate data-confirm="Remove {{ r.symbol }} from the portfolio?">Remove</button>
+      {% endif %}
+    </span>
+  </div>
+  {% endif %}
+  {% endfor %}
+  </details>
+  {% endfor %}
+  {% if manual_count %}
+  <p class="field-hint hold-note">Manual holdings save as you edit. Synced holdings come from your brokerage and stay read-only.</p>
+  {% endif %}
+</form>
+{% endif %}
+
+<details class="card" id="add-holding" {% if accounts and not rows %}open{% endif %}>
+  <summary class="card-title">Add a holding</summary>
+  <form method="post" action="/portfolio/holdings" class="form-grid">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field">
+      <label for="h-sym">Symbol</label>
+      <input class="input upper" id="h-sym" name="symbol" required placeholder="SCHG">
+    </div>
+    <div class="field">
+      <label for="h-name">Name <span class="optional">optional</span></label>
+      <input class="input" id="h-name" name="name" placeholder="Schwab US Large-Cap Growth ETF">
+    </div>
+    <div class="field">
+      <label for="h-kind">Type</label>
+      <select class="input" id="h-kind" name="kind">
+        {% for key, label in kinds %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="h-acct">Account</label>
+      <select class="input" id="h-acct" name="account_id" required>
+        {% for a in all_accounts %}
+        <option value="{{ a.id }}" {% if a.type in ['brokerage','retirement','hsa','crypto'] %}data-investment="1"{% endif %}>{{ a.name }} · {{ a.type_label }}</option>
+        {% endfor %}
+      </select>
+      <p class="field-hint">Holdings in an account replace that account's balance.</p>
+    </div>
+    <div class="field">
+      <label for="h-qty">Shares</label>
+      <input class="input" id="h-qty" name="quantity" inputmode="decimal" required placeholder="10">
+    </div>
+    <div class="field">
+      <label for="h-cost">Total paid</label>
+      <input class="input" id="h-cost" name="cost_basis" inputmode="decimal" required placeholder="1,250.00">
+    </div>
+    <div class="field">
+      <label for="h-price">Price now</label>
+      <input class="input" id="h-price" name="price" inputmode="decimal" required placeholder="138.40">
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Add holding</button></div>
+  </form>
+</details>
+
+<details class="card" open>
+  <summary class="card-title-row">
+    <span class="card-title">Options</span>
+    <span class="muted">{{ opt_summary.open_count }} open · {{ opt_summary.premium_cents|money }} premium</span>
+  </summary>
+  {% if opts %}
+  <ul class="opt-list">
+    {% for o in opts %}
+    <li class="opt-row {% if o.status != 'open' %}is-closed{% endif %}">
+      <div class="opt-main">
+        <p class="opt-name">
+          {{ o.underlying }} {{ o.strike_cents|money }} {{ o.option_type }}
+          <span class="chip chip-muted">{{ o.expiry_on|datefmt }}</span>
+          {% if o.status != 'open' %}<span class="chip chip-muted">{{ o.status }}</span>{% endif %}
+        </p>
+        <p class="opt-meta">
+          {{ o.contracts }}× · premium {{ o.premium_total_cents|money }} · breakeven {{ o.breakeven_cents|money }}
+          {% if o.collateral_cents %} · secured by {{ o.collateral_cents|money }}{% endif %}
+          {% if o.status == 'open' %} · {{ o.dte }} days left{% endif %}
+        </p>
+      </div>
+      {% if o.status == 'open' %}
+      <div class="opt-actions">
+        <form method="post" action="/portfolio/options/{{ o.id }}/close">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <input type="hidden" name="status" value="closed">
+          <button class="btn btn-ghost btn-sm" type="submit">Close</button>
+        </form>
+        <form method="post" action="/portfolio/options/{{ o.id }}/close">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <input type="hidden" name="status" value="expired">
+          <button class="btn btn-ghost btn-sm" type="submit">Expired</button>
+        </form>
+      </div>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="sub">No option positions. Sold puts show the cash securing them; covered calls show breakeven.</p>
+  {% endif %}
+
+  <details class="opt-add">
+    <summary class="quick-add-summary">Add an option position</summary>
+    <form method="post" action="/portfolio/options" class="form-grid">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field">
+        <label for="o-und">Underlying</label>
+        <input class="input upper" id="o-und" name="underlying" required placeholder="SCHW">
+      </div>
+      <div class="field">
+        <label for="o-type">Type</label>
+        <select class="input" id="o-type" name="option_type">
+          <option value="put">Put (sold)</option>
+          <option value="call">Call (sold)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="o-strike">Strike</label>
+        <input class="input" id="o-strike" name="strike" inputmode="decimal" required placeholder="75.00">
+      </div>
+      <div class="field">
+        <label for="o-exp">Expiry</label>
+        <input class="input" id="o-exp" name="expiry_on" type="date" required>
+      </div>
+      <div class="field">
+        <label for="o-qty">Contracts</label>
+        <input class="input" id="o-qty" name="contracts" inputmode="numeric" value="1" required>
+      </div>
+      <div class="field">
+        <label for="o-prem">Premium / share</label>
+        <input class="input" id="o-prem" name="premium" inputmode="decimal" required placeholder="1.35">
+      </div>
+      <div class="field">
+        <label for="o-open">Opened</label>
+        <input class="input" id="o-open" name="opened_on" type="date" value="{{ today }}" required>
+      </div>
+      <div class="form-actions"><button class="btn btn-primary" type="submit">Add option</button></div>
+    </form>
+  </details>
+</details>
+{% endblock %}

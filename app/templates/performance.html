@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Performance · {{ app_name }}{% endblock %}
+
+{% block content %}
+{% include "_acct_nav.html" %}
+
+<div class="page-head">
+  <div>
+    <h1>Performance</h1>
+    <p class="sub">
+      {% if perf %}{{ perf.start|datefmt_year }} → {{ perf.end|datefmt_year }} · {{ perf.days }} sessions · {{ perf.symbols }} symbols
+      {% else %}How the portfolio has tracked the market{% endif %}
+    </p>
+  </div>
+</div>
+
+{% if perf %}
+<div class="chart-tabs perf-tabs">
+  {% for key, label in ranges %}
+  <a class="chart-tab{% if key == range_key %} is-active{% endif %}"
+     href="/performance?range={{ key }}">{{ label }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if not perf %}
+<section class="card empty-card">
+  <h2>No investments to measure yet</h2>
+  <p class="sub">Add holdings on the <a href="/portfolio">Portfolio</a> tab, or mark an account for the portfolio.</p>
+</section>
+{% else %}
+{% set invest = perf.lines[0] %}
+<section class="totals report-totals">
+  <div class="total">
+    <p class="label">Investments</p>
+    <p class="total-figure">{{ perf.value_cents|money }}</p>
+  </div>
+  <div class="total">
+    <p class="label">Investments return</p>
+    <p class="total-figure {{ 'pos' if invest.change_pct >= 0 else 'neg' }}">{{ '%+.1f%%'|format(invest.change_pct) }}</p>
+  </div>
+  {% for line in perf.lines[1:] %}
+  <div class="total">
+    <p class="label">{{ line.label }}</p>
+    <p class="total-figure {{ 'pos' if line.change_pct >= 0 else 'neg' }}">{{ '%+.1f%%'|format(line.change_pct) }}</p>
+  </div>
+  {% endfor %}
+</section>
+
+<section class="card">
+  <h2 class="card-title">Investments vs the market</h2>
+  <div class="chart-wrap">
+    <div class="chart-yaxis" aria-hidden="true">
+      {% for t in perf.ticks|reverse %}<span>{{ t.label }}</span>{% endfor %}
+    </div>
+    <div class="chart-scroll">
+      <svg class="perf-chart" viewBox="0 0 {{ perf.width }} {{ perf.height }}" preserveAspectRatio="none"
+           role="img" aria-label="Investments, S&amp;P 500 and Nasdaq indexed to 100 at {{ perf.start }}"
+           data-scrub
+           data-dates='{{ perf.dates|tojson }}'
+           data-series='{{ perf.pick|tojson }}'
+           data-geom='{{ {"lo": perf.lo, "hi": perf.hi, "w": perf.width, "h": perf.height, "pad": perf.pad}|tojson }}'>
+        {% for line in perf.lines %}
+        <polyline class="perf-line perf-{{ line.key }}" points="{{ line.points }}"
+                  vector-effect="non-scaling-stroke"></polyline>
+        {% endfor %}
+        <g class="perf-pick" aria-hidden="true">
+          <line class="perf-rule" x1="0" x2="0" y1="0" y2="{{ perf.height }}" vector-effect="non-scaling-stroke"></line>
+          {% for line in perf.lines %}
+          <circle class="perf-pdot perf-{{ line.key }}" r="4.5" cx="-20" cy="-20"></circle>
+          {% endfor %}
+        </g>
+      </svg>
+      <div class="chart-axis" aria-hidden="true">
+        <span>{{ perf.start|datefmt_year }}</span><span>{{ perf.end|datefmt_year }}</span>
+      </div>
+    </div>
+  </div>
+  <div class="flow-legend perf-legend">
+    <span class="perf-day" data-chart-day>{{ perf.start|datefmt_year }} – {{ perf.end|datefmt_year }}</span>
+    {% for line in perf.lines %}
+    <span><i class="perf-dot perf-{{ line.key }}"></i>{{ line.label }}
+      <b class="perf-value" data-chart-value="{{ line.key }}">{{ line.last }}</b></span>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

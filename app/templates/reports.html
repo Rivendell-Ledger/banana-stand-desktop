@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Reports · {{ app_name }}{% endblock %}
+
+{% macro metrics(row) -%}
+<span class="report-spent">{{ row.spent_cents|money }}</span>
+<span class="report-share">{{ '%.0f%%'|format(row.share_pct) }}</span>
+<span class="report-delta {{ 'neg' if row.delta_cents > 0 else ('pos' if row.delta_cents < 0 else 'muted') }}">
+  {% if row.prev_cents %}
+    {{ row.delta_cents|money(signed=True) }}
+    {% if row.delta_pct is not none %}<span class="muted">{{ '%+.0f'|format(row.delta_pct) }}%</span>{% endif %}
+  {% else %}<span class="muted">new</span>{% endif %}
+</span>
+{%- endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Reports</h1>
+    <p class="sub">{{ r.label }} · {{ r.txn_count }} transaction{{ '' if r.txn_count == 1 else 's' }}</p>
+  </div>
+  <div class="head-actions">
+    <a class="btn btn-ghost" href="/reports?month={{ r.prev }}">← {{ r.prev }}</a>
+    <a class="btn btn-ghost" href="/reports?month={{ r.next }}">{{ r.next }} →</a>
+    <a class="btn btn-primary" href="/reports/export.csv?month={{ r.month }}">Export CSV</a>
+  </div>
+</div>
+
+<section class="totals report-totals">
+  <div class="total">
+    <p class="label">Income</p>
+    <p class="total-figure pos">{{ r.income_cents|money }}</p>
+  </div>
+  <div class="total">
+    <p class="label">Expenses</p>
+    <p class="total-figure">{{ r.expense_cents|money }}</p>
+  </div>
+  <div class="total">
+    <p class="label">Net</p>
+    <p class="total-figure {{ 'pos' if r.net_cents >= 0 else 'neg' }}">{{ r.net_cents|money(signed=True) }}</p>
+  </div>
+  <div class="total">
+    <p class="label">Savings rate</p>
+    <p class="total-figure">
+      {{ '%.0f%%'|format((r.net_cents / r.income_cents * 100) if r.income_cents else 0) }}
+    </p>
+  </div>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Breakdown</h2>
+  {% if r.rows %}
+  <div class="breakdown">
+    <div class="donut-wrap">
+      <svg class="donut" viewBox="0 0 42 42" role="img" aria-label="Share of spending by category">
+        <circle class="donut-track" cx="21" cy="21" r="15.915"></circle>
+        {% for s in r.pie %}
+        <circle class="donut-seg seg-{{ s.cls }}{% if s.other %} is-other{% endif %}" cx="21" cy="21" r="15.915"
+                stroke-dasharray="{{ s.dash }} {{ s.rest }}" stroke-dashoffset="{{ s.offset }}"
+                {% if s.other %}data-other-wedge="1"{% endif %}><title>{{ s.name }} · {{ s.spent_cents|money_plain }} · {{ '%.0f'|format(s.share_pct) }}%</title></circle>
+        {% endfor %}
+      </svg>
+      <div class="donut-center">
+        <strong>{{ r.pie_total_cents|money }}</strong>
+        <span>spent</span>
+      </div>
+    </div>
+    <div class="breakdown-body">
+      <div class="report-head" aria-hidden="true">
+        <span>Category</span><span>Spent</span><span>Share</span><span>vs last month</span>
+      </div>
+      <ul class="report-list">
+        {% for row in r.pie %}
+        {% if row.other and r.other_rows %}
+        <li class="report-row report-other">
+          <details id="other-details">
+            <summary class="report-line">
+              <span class="report-name">
+                <span class="dot seg-{{ row.cls }}"></span>
+                <span class="other-caret" aria-hidden="true">▸</span>
+                Other <span class="muted">{{ r.other_rows|length }}</span>
+              </span>
+              {{ metrics(row) }}
+            </summary>
+            <div class="other-body">
+              <div class="other-head" aria-hidden="true">
+                <span>Category</span><span>Spent</span><span>Share</span>
+              </div>
+              <ul class="other-list">
+                {% for o in r.other_rows %}
+                <li class="other-item">
+                  <span class="report-name">{{ o.name }}</span>
+                  <span class="report-spent">{{ o.spent_cents|money }}</span>
+                  <span class="report-share">{{ '%.1f%%'|format(o.share_pct) }}</span>
+                </li>
+                {% endfor %}
+              </ul>
+            </div>
+          </details>
+        </li>
+        {% else %}
+        <li class="report-row">
+          <span class="report-name"><span class="dot seg-{{ row.cls }}"></span>{{ row.name }}</span>
+          {{ metrics(row) }}
+        </li>
+        {% endif %}
+        {% endfor %}
+      </ul>
+      <p class="field-hint">Share of this month's spending. “vs last month” is the change from {{ r.prev }} — red means more.{% if r.other_rows %} Tap <strong>Other</strong> to see what it holds.{% endif %}</p>
+    </div>
+  </div>
+  {% else %}
+  <p class="sub">No spending recorded for {{ r.label }}.</p>
+  {% endif %}
+</section>
+
+{% if r.merchants %}
+<section class="card">
+  <h2 class="card-title">Top merchants</h2>
+  <ul class="history">
+    {% for m in r.merchants %}
+    <li><span>{{ m.name }} <span class="muted">{{ m.count }}×</span></span><span class="money">{{ m.total_cents|money }}</span></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2 class="card-title">Last 12 months</h2>
+  <div class="trend-wrap">
+    <div class="trend-yaxis" aria-hidden="true">
+      {% for g in trend_scale|reverse %}<span>{{ g.label }}</span>{% endfor %}
+    </div>
+    <div class="trend-main">
+      <div class="trend">
+        {% for g in trend_scale %}<span class="trend-gridline" data-pct="{{ g.pct }}" aria-hidden="true"></span>{% endfor %}
+        {% for t in trend %}
+        <div class="trend-col" tabindex="0" title="{{ t.full_label }}: {{ t.expense_cents|money_plain }} out, {{ t.income_cents|money_plain }} in"
+             data-label="{{ t.full_label }}" data-value="{{ t.expense_cents|money_plain }} out · {{ t.income_cents|money_plain }} in">
+          <span class="trend-bar" data-pct="{{ '%.1f'|format(t.expense_cents / max_bar * 100) }}"></span>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="trend-labels" aria-hidden="true">
+        {% for t in trend %}<span>{{ t.label }}</span>{% endfor %}
+      </div>
+    </div>
+  </div>
+  <p class="field-hint">Bars are spending. Tap or hover a month for income and net.</p>
+</section>
+{% endblock %}

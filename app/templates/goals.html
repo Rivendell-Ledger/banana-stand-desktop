@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Goals · {{ app_name }}{% endblock %}
+
+{% block content %}
+{% include "_plan_nav.html" %}
+
+<div class="page-head">
+  <div>
+    <h1>Goals</h1>
+    <p class="sub">What the money is for. Progress is what you have put aside, not what it might grow to.</p>
+  </div>
+</div>
+
+{% if saved %}<div class="alert alert-ok">Saved.</div>{% endif %}
+{% if request.query_params.get('error') %}<div class="alert alert-error" role="alert">{{ request.query_params.get('error')|replace('+', ' ') }}</div>{% endif %}
+
+<section class="card quick-add">
+  <details {% if not goal_list %}open{% endif %}>
+    <summary class="quick-add-summary">New goal</summary>
+    <form method="post" action="/goals" class="form-grid">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field">
+        <label for="g-name">Name</label>
+        <input class="input" id="g-name" name="name" required placeholder="Emergency fund">
+      </div>
+      <div class="field">
+        <label for="g-target">Target</label>
+        <input class="input" id="g-target" name="target" inputmode="decimal" required placeholder="10,000.00">
+      </div>
+      <div class="field">
+        <label for="g-date">Target date <span class="optional">optional</span></label>
+        <input class="input" id="g-date" name="target_date" type="date">
+      </div>
+      <div class="form-actions"><button class="btn btn-primary" type="submit">Add goal</button></div>
+    </form>
+  </details>
+</section>
+
+{% for g in goal_list %}
+<section class="card goal-card {% if g.is_done %}is-done{% endif %}">
+  <div class="goal-head">
+    <div>
+      <h2 class="goal-name">{{ g.name }}</h2>
+      <p class="sub">
+        {{ g.saved_cents|money }} of {{ g.target_cents|money }}
+        {% if g.target_date %} · by {{ g.target_date }}{% endif %}
+      </p>
+    </div>
+    <div class="goal-right">
+      <span class="goal-pct">{{ '%.0f'|format(g.pct) }}%</span>
+      {% if g.is_done %}<span class="chip">achieved</span>
+      {% elif g.on_track is true %}<span class="chip">on track</span>
+      {% elif g.on_track is false %}<span class="chip chip-muted">behind</span>{% endif %}
+      {% if g.status == 'paused' %}<span class="chip chip-muted">paused</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="goal-bar"><span class="goal-fill" data-pct="{{ '%.1f'|format(g.pct) }}"></span></div>
+
+  <p class="goal-note">
+    {% if g.is_done %}
+      Done. {{ g.saved_cents|money }} put aside.
+    {% else %}
+      {{ g.remaining_cents|money }} to go{% if g.monthly_needed_cents %} · {{ g.monthly_needed_cents|money }} a month to land on time{% endif %}.
+    {% endif %}
+  </p>
+
+  {% if not g.is_done %}
+  <form method="post" action="/goals/{{ g.id }}/contribute" class="goal-add">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label class="sr-only" for="c-{{ g.id }}">Contribution</label>
+    <input class="input" id="c-{{ g.id }}" name="amount" inputmode="decimal" placeholder="250.00" required>
+    <input class="input" name="occurred_on" type="date" value="{{ today }}" aria-label="Contribution date">
+    <button class="btn btn-primary btn-sm" type="submit">Add</button>
+  </form>
+  {% endif %}
+
+  <details class="goal-edit">
+    <summary class="muted">Edit</summary>
+    <form method="post" action="/goals/{{ g.id }}/update" class="form-grid">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field">
+        <label for="n-{{ g.id }}">Name</label>
+        <input class="input" id="n-{{ g.id }}" name="name" value="{{ g.name }}">
+      </div>
+      <div class="field">
+        <label for="t-{{ g.id }}">Target</label>
+        <input class="input" id="t-{{ g.id }}" name="target" value="{{ '%.2f'|format(g.target_cents / 100) }}">
+      </div>
+      <div class="field">
+        <label for="d-{{ g.id }}">Target date</label>
+        <input class="input" id="d-{{ g.id }}" name="target_date" type="date" value="{{ g.target_date or '' }}">
+      </div>
+      <div class="field">
+        <label for="s-{{ g.id }}">Status</label>
+        <select class="input" id="s-{{ g.id }}" name="status">
+          <option value="active" {% if g.status == 'active' %}selected{% endif %}>Active</option>
+          <option value="paused" {% if g.status == 'paused' %}selected{% endif %}>Paused</option>
+          <option value="achieved" {% if g.status == 'achieved' %}selected{% endif %}>Achieved</option>
+        </select>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-ghost btn-sm" type="submit">Save</button>
+        <button class="btn btn-ghost btn-sm danger" type="submit" formaction="/goals/{{ g.id }}/delete"
+                formnovalidate data-confirm="Delete {{ g.name }}?">Delete</button>
+      </div>
+    </form>
+  </details>
+</section>
+{% else %}
+<section class="card empty-card">
+  <h2>No goals yet</h2>
+  <p class="sub">An emergency fund is a good first one. So is the thing you keep almost buying.</p>
+</section>
+{% endfor %}
+{% endblock %}

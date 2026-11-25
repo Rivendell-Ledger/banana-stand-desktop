@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Review accounts · {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow"><a href="/settings">Settings</a></p>
+    <h1>Where do these go?</h1>
+    <p class="sub">{{ institution }} · pick a home for each account before the first sync.</p>
+  </div>
+</div>
+
+{% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
+
+<section class="card">
+  <form method="post" action="/plaid/review">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="item" value="{{ item.id }}">
+
+    <ul class="acct-list review-list">
+      {% for a in accounts %}
+      <li class="review-row">
+        <div class="acct-main">
+          <span class="acct-name">{{ a.name }}{% if a.mask %} <span class="muted">••{{ a.mask }}</span>{% endif %}
+            {% if a.account_id in known %}<span class="chip chip-muted">already connected</span>{% endif %}</span>
+          <span class="acct-meta">{{ a.suggested_type|replace('_', ' ') }} · {{ a.balances.current|usd }}</span>
+        </div>
+        <input type="hidden" name="plaid_account_id" value="{{ a.account_id }}">
+        <label class="sr-only" for="mode-{{ a.account_id }}">Destination for {{ a.name }}</label>
+        <select class="input" id="mode-{{ a.account_id }}" name="mode_{{ a.account_id }}">
+          <option value="new">Create a new account</option>
+          <option value="skip" {% if a.account_id in known %}selected{% endif %}>Skip this account</option>
+          {% if existing %}
+          <optgroup label="Merge into an existing account">
+            {% for e in existing %}
+            <option value="existing:{{ e.id }}">{{ e.name }}{% if e.mask %} ••{{ e.mask }}{% endif %}</option>
+            {% endfor %}
+          </optgroup>
+          {% endif %}
+        </select>
+      </li>
+      {% endfor %}
+    </ul>
+
+    <p class="field-hint">Merging keeps the existing account's name, history and net-worth position. Everything Plaid imports lands in that account.</p>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Connect and run first sync</button>
+      <a class="btn btn-ghost" href="/settings">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

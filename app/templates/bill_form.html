@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}{{ rec.name if rec else 'New recurring' }} · {{ app_name }}{% endblock %}
+
+{% block content %}
+{% include "_plan_nav.html" %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow"><a href="/bills">Bills</a></p>
+    <h1>{{ rec.name if rec else 'New recurring' }}</h1>
+    {% if rec %}<p class="sub">Status: {{ rec.status }}{% if rec.last_seen_on %} · last seen {{ rec.last_seen_on|reldate }}{% endif %}</p>{% endif %}
+  </div>
+</div>
+
+{% if request.query_params.get('error') %}
+<div class="alert alert-error" role="alert">{{ request.query_params.get('error')|replace('+', ' ') }}</div>
+{% endif %}
+
+<section class="card">
+  <form method="post" action="{{ '/bills/' ~ rec.id ~ '/update' if rec else '/bills/new' }}" class="form-grid">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+
+    <div class="field">
+      <label for="b-name">Name</label>
+      <input class="input" id="b-name" name="name" value="{{ rec.name if rec else '' }}" required placeholder="Netflix">
+    </div>
+    <div class="field">
+      <label for="b-amount">Amount</label>
+      <input class="input" id="b-amount" name="amount" inputmode="decimal" required
+             value="{{ '%.2f'|format(rec.amount_cents / 100) if rec else '' }}" placeholder="22.99">
+    </div>
+    <div class="field">
+      <label for="b-kind">Type</label>
+      <select class="input" id="b-kind" name="kind">
+        <option value="bill" {% if kind != 'income' %}selected{% endif %}>Bill</option>
+        <option value="income" {% if kind == 'income' %}selected{% endif %}>Income</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="b-cadence">Repeats</label>
+      <select class="input" id="b-cadence" name="cadence">
+        {% for key, label in cadences.items() %}
+        <option value="{{ key }}" {% if rec and rec.cadence == key %}selected{% endif %}>{{ label[0] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="b-next">Next date</label>
+      <input class="input" id="b-next" name="next_due_on" type="date" required value="{{ rec.due_on if rec else today }}">
+    </div>
+    <div class="field">
+      <label for="b-cat">Category</label>
+      <select class="input" id="b-cat" name="category_id">
+        <option value="">No category</option>
+        {% for c in cats if c.kind != 'income' %}
+        <option value="{{ c.id }}" {% if rec and rec.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+      <p class="field-hint">A budgeted category already covers this bill, so it will not be double-counted.</p>
+    </div>
+    <div class="field">
+      <label for="b-account">Account <span class="optional">optional</span></label>
+      <select class="input" id="b-account" name="account_id">
+        <option value="">Any</option>
+        {% for a in accounts %}
+        <option value="{{ a.id }}" {% if rec and rec.account_id == a.id %}selected{% endif %}>{{ a.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field field-wide">
+      <label for="b-notes">Notes <span class="optional">optional</span></label>
+      <input class="input" id="b-notes" name="notes" value="{{ rec.notes or '' if rec else '' }}">
+    </div>
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">{{ 'Save' if rec else 'Add recurring' }}</button>
+      <a class="btn btn-ghost" href="/bills">Cancel</a>
+    </div>
+  </form>
+</section>
+
+{% if rec %}
+<section class="danger-zone">
+  <form method="post" action="/bills/{{ rec.id }}/delete">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="btn btn-ghost danger" type="submit">Delete this recurring item</button>
+  </form>
+  <p class="field-hint">Ending it keeps the history; deleting removes it from the forecast entirely.</p>
+</section>
+{% endif %}
+{% endblock %}

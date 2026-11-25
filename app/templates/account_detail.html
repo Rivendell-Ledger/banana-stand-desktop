@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}{{ account.name }} · {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow"><a href="/accounts">Accounts</a></p>
+    <h1>{{ account.name }}</h1>
+    <p class="sub">{{ account.institution or 'Manual account' }}{% if account.mask %} · ••{{ account.mask }}{% endif %}</p>
+  </div>
+  <div class="head-actions-stack">
+    <a class="btn btn-ghost" href="/accounts">← Back to accounts</a>
+    <span class="chip">{{ account.type_label }}</span>
+  </div>
+</div>
+
+{% if created %}
+<div class="alert alert-ok">Account added. Net worth has been updated.</div>
+{% endif %}
+{% if request.query_params.get('error') == 'balance' %}
+<div class="alert alert-error" role="alert">That balance doesn't look like a number.</div>
+{% endif %}
+{% if request.query_params.get('error') == 'fields' %}
+<div class="alert alert-error" role="alert">Name and type are required.</div>
+{% endif %}
+{% if account.archived_at %}
+<div class="alert alert-error" role="alert">This account is archived and excluded from net worth.</div>
+{% endif %}
+
+<section class="card hero">
+  <p class="label">{% if account.is_liability %}Amount owed{% else %}Current balance{% endif %}</p>
+  <p class="figure">{{ account.current_balance_cents|money }}</p>
+  {% if account.units_sats is not none %}
+  <p class="sub">{{ account.units_sats|btc }} BTC{% if btc_price %} · priced at {{ btc_price|money }}{% endif %}</p>
+  {% endif %}
+  <p class="sub">
+    {% if account.manual_balance_as_of %}Updated {{ account.manual_balance_as_of }}{% else %}No balance set yet{% endif %}
+    {% if not account.include_in_net_worth %} · excluded from net worth{% endif %}
+  </p>
+
+  <form method="post" action="/accounts/{{ account.id }}/balance" class="inline-edit">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label class="sr-only" for="balance">New balance</label>
+    {% if account.units_sats is not none %}
+    <input class="input" id="balance" name="balance" inputmode="decimal" placeholder="BTC amount"
+           value="{{ account.units_sats|btc }}">
+    {% else %}
+    <input class="input" id="balance" name="balance" inputmode="decimal" placeholder="New balance"
+           value="{{ '%.2f'|format(account.current_balance_cents / 100) }}">
+    {% endif %}
+    <button class="btn btn-ghost" type="submit">Update</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Details</h2>
+  <form method="post" action="/accounts/{{ account.id }}/edit" class="form-grid">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field">
+      <label for="etype">Type</label>
+      <select class="input" id="etype" name="type">
+        {% for value, label, group in types %}
+        <option value="{{ value }}" {% if account.type == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="ename">Name</label>
+      <input class="input" id="ename" name="name" value="{{ account.name }}" required>
+    </div>
+    <div class="field">
+      <label for="einstitution">Institution</label>
+      <input class="input" id="einstitution" name="institution" value="{{ account.institution or '' }}">
+    </div>
+    <div class="field">
+      <label for="emask">Last 4</label>
+      <input class="input" id="emask" name="mask" inputmode="numeric" maxlength="4" value="{{ account.mask or '' }}">
+    </div>
+    <div class="field">
+      <label for="etax">Tax treatment</label>
+      <select class="input" id="etax" name="tax_treatment">
+        <option value="" {% if not account.tax_treatment %}selected{% endif %}>Auto — from type and name</option>
+        <option value="taxable" {% if account.tax_treatment == 'taxable' %}selected{% endif %}>Taxable brokerage</option>
+        <option value="traditional" {% if account.tax_treatment == 'traditional' %}selected{% endif %}>Traditional — taxed when withdrawn</option>
+        <option value="roth" {% if account.tax_treatment == 'roth' %}selected{% endif %}>Roth — tax free</option>
+        <option value="hsa" {% if account.tax_treatment == 'hsa' %}selected{% endif %}>HSA</option>
+        <option value="cash" {% if account.tax_treatment == 'cash' %}selected{% endif %}>Cash</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="elimit">Credit limit</label>
+      <input class="input" id="elimit" name="credit_limit" inputmode="decimal"
+             value="{{ '%.2f'|format(account.credit_limit_cents / 100) if account.credit_limit_cents else '' }}">
+    </div>
+    <label class="check">
+      <input type="checkbox" name="include_net" {% if account.include_in_net_worth %}checked{% endif %}>
+      <span>Include in net worth</span>
+    </label>
+    <label class="check">
+      <input type="checkbox" name="include_budget" {% if account.include_in_budget %}checked{% endif %}>
+      <span>Count in safe to spend</span>
+    </label>
+    <label class="check">
+      <input type="checkbox" name="include_portfolio" {% if account.include_in_portfolio %}checked{% endif %}>
+      <span>Add to Portfolio</span>
+    </label>
+    <p class="field-hint">Uncheck money you can't actually spend — bitcoin held in an IRA, for example.
+      Tax treatment drives the <a href="/retirement">Retirement</a> projection: Traditional money is taxed as it comes out,
+      Roth money comes out free, and Taxable money is taxed on its gains only.</p>
+    <div class="form-actions">
+      <button class="btn btn-yellow" type="submit">Save details</button>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Balance history</h2>
+  {% if history %}
+  <ul class="history">
+    {% for h in history %}
+    <li><span>{{ h.as_of_date }}</span><span class="money">{{ h.balance_cents|money }}</span></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="sub">No balance history yet.</p>
+  {% endif %}
+</section>
+
+<section class="danger-zone">
+  {% if account.archived_at %}
+  <form method="post" action="/accounts/{{ account.id }}/restore">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="btn btn-ghost" type="submit">Restore account</button>
+  </form>
+  {% else %}
+  <form method="post" action="/accounts/{{ account.id }}/archive">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="btn btn-ghost danger" type="submit">Archive account</button>
+  </form>
+  <p class="field-hint">Archiving keeps history but removes it from net worth.</p>
+  {% endif %}
+</section>
+{% endblock %}

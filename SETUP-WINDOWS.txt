@@ -1,0 +1,109 @@
+THE BANANA STAND — WINDOWS SETUP
+================================
+
+1. Run BananaStandSetup.exe.
+   Windows may say "Windows protected your PC" because the installer is not
+   code-signed. Click "More info" then "Run anyway". This appears once.
+
+2. The installer is per-user: no administrator password is required.
+
+3. Open The Banana Stand from the Start menu or the desktop shortcut.
+   It starts a small local server and opens in your default browser at
+   http://127.0.0.1:8093. A banana icon stays in the system tray.
+
+4. Create your household name and login on the first screen.
+
+5. CONNECT A BANK (optional)
+   - Open dashboard.plaid.com and create a free developer account.
+     Choose "Personal use" — not Business, not App user.
+   - When it asks for a website (required), any valid URL you control works:
+     a personal site, a blog, or your LinkedIn profile.
+   - Open Developers -> Keys and copy the Client ID and the production secret.
+   - In the app, paste both on the "Connect your banks" screen and press
+     "Test and save". The app verifies them with Plaid before storing them.
+   - The free Trial includes 10 bank connections. Leave "Item slots" at 10
+     unless your Plaid dashboard says otherwise.
+   - Those 10 are permanent on the Trial: removing a bank does not free a slot.
+     Reconnect an existing bank instead of adding it again.
+   - Press "Connect a bank" and sign in at your bank inside Plaid's window.
+     OAuth banks open a pop-up; allow pop-ups for 127.0.0.1.
+   - You can skip this step and use Import CSV or manual entry instead.
+
+6. RECOVERY KIT (important)
+   - Make a recovery kit when prompted, or later in Settings -> Recovery kit.
+   - It is one small text file encrypted with a passphrase you choose.
+   - Store it OFF this computer (USB drive, password manager, cloud storage).
+   - Keep the passphrase separate from the file.
+   - Without the kit, losing the computer means re-linking every bank.
+
+IF A RECOVERY KIT WILL NOT OPEN (KitDoctor)
+   KitDoctor.exe sits next to BananaStand.exe in
+   %LOCALAPPDATA%\Programs\BananaStand. Open Command Prompt, cd to that folder,
+   then run one of:
+
+     KitDoctor.exe check
+         Verifies the key on this computer against every stored bank token and
+         the saved Plaid credentials. Prints a key fingerprint (safe to share).
+
+     KitDoctor.exe inspect "C:\path\to\banana-stand-recovery-kit.txt"
+         Says exactly which step fails: wrong passphrase, damaged file, or a
+         kit from a different installation. Never prints the key or secrets.
+
+     KitDoctor.exe reexport
+         Writes a fresh working kit from the key on this computer.
+
+     KitDoctor.exe restore "C:\path\to\banana-stand-recovery-kit.txt"
+         Restores a kit when the web page will not start.
+
+   If you need help, send the output and the kit file - never the passphrase.
+
+USING YOUR PHONE (optional, no Tailscale needed)
+   Settings -> Phone access -> "Allow devices on this network to connect".
+   Quit the app from the tray icon and open it again. Saving alone does not
+   rebind the server — closing the window only hides it in the tray.
+   The first time it listens, Windows asks whether to allow BananaStand on
+   networks. Choose Yes and tick Private networks. If you missed the prompt,
+   open Windows Security -> Firewall & network protection -> Allow an app
+   through firewall and tick BananaStand on Private.
+   The page shows an address like http://192.168.1.20:8093 — open that on your
+   phone while it is on the same Wi-Fi.
+
+   - It is the same database, not a copy, so nothing needs to sync.
+   - The computer must be on and the app running.
+   - If the phone cannot connect, press "Check this address" on the page. If
+     the PC answers but the phone does not, check the firewall and that the
+     Wi-Fi is marked Private, and that the phone is not on a guest network.
+     PowerShell: Get-NetTCPConnection -LocalPort 8093 -State Listen
+     should show 0.0.0.0, not 127.0.0.1.
+   - Use it at home. Do not forward the port on your router. Wi-Fi traffic is
+     not encrypted even though the app has a login.
+   - Connect banks on the computer; some bank sign-in windows do not return
+     cleanly on a phone browser.
+
+WHERE YOUR DATA LIVES
+   %LOCALAPPDATA%\BananaStand
+     data\      the ledger database
+     backups\   nightly snapshots
+     secret\    the encryption key
+     logs\      desktop.log and app.log
+
+   Quit the app from the tray first, then copy the whole folder to move it to
+   another computer, and keep a copy somewhere safe. The recovery kit is separate
+   on purpose: a file that contains both the database and its key is not protected
+   at all.
+
+UPDATING (your data and bank connections are kept)
+   1. Quit The Banana Stand from the tray icon (right-click -> Quit). Setup can
+      close it for you, but quitting first is cleaner.
+   2. Run the newer BananaStandSetup.exe. It is the same product, so Windows
+      updates it in place rather than installing a second copy.
+   3. Only the program files are replaced. %LOCALAPPDATA%\BananaStand — the
+      ledger, backups, encryption key, and Plaid credentials — is not touched.
+   4. Bank connections stay linked. There is no need to re-enter Plaid keys or
+      re-link banks after a normal update.
+   5. If a future update changes the database layout, the app writes a
+      pre-migration-*.db snapshot into backups\ before touching it.
+
+UNINSTALLING
+   Settings -> Apps -> The Banana Stand. Your data folder is kept; delete it by
+   hand if you want a clean removal.

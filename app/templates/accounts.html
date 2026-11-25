@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Accounts · {{ app_name }}{% endblock %}
+
+{% block content %}
+{% include "_acct_nav.html" %}
+
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Balance sheet</p>
+    <h1>Accounts</h1>
+  </div>
+  <a class="btn btn-primary" href="/accounts/new">Add account</a>
+</div>
+
+<section class="totals">
+  <div class="total">
+    <p class="label">Assets</p>
+    <p class="total-figure">{{ totals.assets|money }}</p>
+  </div>
+  <div class="total">
+    <p class="label">Liabilities</p>
+    <p class="total-figure">{{ totals.liabilities|money }}</p>
+  </div>
+  <div class="total total-net">
+    <p class="label">Net worth</p>
+    <p class="total-figure">{{ totals.net|money }}</p>
+  </div>
+</section>
+
+{% if not accounts %}
+<section class="card empty-card">
+  <h2>No accounts yet</h2>
+  <p class="sub">Add a checking account, a card, a mortgage, or a manual brokerage balance. Everything else builds on this.</p>
+  <p class="hero-actions"><a class="btn btn-primary" href="/accounts/new">Add the first account</a></p>
+</section>
+{% else %}
+
+<section class="acct-section">
+  <h2 class="section-title">Assets <span class="count">{{ assets|length }}</span></h2>
+  {% if assets %}
+  <div class="acct-list">
+    {% for group in asset_groups %}
+    <details class="acct-group" open>
+    <summary class="group-head">{{ group.name }}</summary>
+    {% for a in group.accounts %}
+    <a class="acct-row" href="/accounts/{{ a.id }}">
+      <span class="acct-main">
+        <span class="acct-name">{{ a.name }}</span>
+        <span class="acct-meta">{{ 'Manual' if not a.institution }}{% if a.mask %} · ••{{ a.mask }}{% endif %}{% if a.units_sats is not none %} · {{ a.units_sats|btc }} BTC{% endif %}</span>
+      </span>
+      <span class="chip">{{ a.type_label }}</span>
+      <span class="acct-balance">{{ a.current_balance_cents|money }}</span>
+    </a>
+    {% endfor %}
+    </details>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="sub">No asset accounts yet.</p>
+  {% endif %}
+</section>
+
+<section class="acct-section">
+  <h2 class="section-title">Liabilities <span class="count">{{ liabilities|length }}</span></h2>
+  {% if liabilities %}
+  <div class="acct-list">
+    {% for group in liability_groups %}
+    <details class="acct-group" open>
+    <summary class="group-head">{{ group.name }}</summary>
+    {% for a in group.accounts %}
+    <a class="acct-row" href="/accounts/{{ a.id }}">
+      <span class="acct-main">
+        <span class="acct-name">{{ a.name }}</span>
+        <span class="acct-meta">{{ 'Manual' if not a.institution }}{% if a.mask %} · ••{{ a.mask }}{% endif %}{% if a.units_sats is not none %} · {{ a.units_sats|btc }} BTC{% endif %}</span>
+      </span>
+      <span class="chip">{{ a.type_label }}</span>
+      <span class="acct-balance">{{ a.current_balance_cents|money }}</span>
+    </a>
+    {% endfor %}
+    </details>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="sub">No liabilities yet.</p>
+  {% endif %}
+</section>
+
+{% if archived_accounts %}
+<section class="acct-section">
+  <h2 class="section-title">Archived <span class="count">{{ archived_accounts|length }}</span></h2>
+  <div class="acct-list">
+    {% for a in archived_accounts %}
+    <div class="acct-row is-archived">
+      <span class="acct-main">
+        <span class="acct-name">{{ a.name }} <span class="chip chip-muted">archived</span></span>
+        <span class="acct-meta">{{ a.institution or 'Manual' }}{% if a.mask %} · ••{{ a.mask }}{% endif %} · excluded from totals</span>
+      </span>
+      <span class="acct-balance">{{ a.current_balance_cents|money }}</span>
+      <form method="post" action="/accounts/{{ a.id }}/restore">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="btn btn-ghost btn-sm" type="submit">Restore</button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% endif %}
+
+{% if accounts or archived_total %}
+<p class="foot-link">
+  {% if archived_view %}
+  <a href="/accounts">Hide archived</a>
+  {% else %}
+  <a href="/accounts?archived=1">Show archived</a>
+  {% endif %}
+</p>
+{% endif %}
+{% endblock %}

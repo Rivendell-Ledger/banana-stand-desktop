@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Rules · {{ app_name }}{% endblock %}
+
+{% block content %}
+{% if request.query_params.get('applied') is not none %}
+<div class="alert alert-ok">
+  {% set n = request.query_params.get('applied')|int %}
+  {% if n %}{{ n }} transaction{{ '' if n == 1 else 's' }} updated by the rule.{% else %}No uncategorised transactions matched that rule.{% endif %}
+</div>
+{% endif %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow"><a href="/settings">Settings</a></p>
+    <h1>Rules</h1>
+    <p class="sub">First match wins. A category you set by hand is never overwritten.</p>
+  </div>
+  <a class="btn btn-primary" href="/rules/new">New rule</a>
+</div>
+
+{% if request.query_params.get('aliased') %}<div class="alert alert-ok">{{ request.query_params.get('aliased') }} merchants renamed.</div>{% endif %}
+{% if request.query_params.get('error') %}<div class="alert alert-error" role="alert">{{ request.query_params.get('error')|replace('+', ' ') }}</div>{% endif %}
+
+<section class="card">
+  <h2 class="card-title">Category rules</h2>
+  {% if rule_list %}
+  <ul class="rule-list">
+    {% for r in rule_list %}
+    <li class="rule-row {% if not r.enabled %}is-off{% endif %}">
+      <div class="rule-main">
+        <p class="rule-name">
+          <a href="/rules/{{ r.id }}">{{ r.name }}</a>
+          {% if not r.enabled %}<span class="chip chip-muted">off</span>{% endif %}
+        </p>
+        <p class="rule-when">
+          {% for c in r.conditions %}{{ c.field }} {{ c.op }} “{{ c.value }}”{% if not loop.last %} and {% endif %}{% endfor %}
+        </p>
+        <p class="rule-meta">
+          → {% if r.action_type == 'category' %}category{% elif r.action_type == 'tag' %}tag{% elif r.action_type == 'transfer' %}transfer{% else %}excluded{% endif %}
+          · {{ r.match_count }} applied
+          · {% if r.apply_to == 'all' %}all matching rows{% else %}uncategorised only{% endif %}
+        </p>
+      </div>
+      <div class="rule-actions">
+        <form method="post" action="/rules/{{ r.id }}/toggle">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="btn btn-ghost btn-sm" type="submit">{{ 'Turn off' if r.enabled else 'Turn on' }}</button>
+        </form>
+        <form method="post" action="/rules/{{ r.id }}/apply">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="btn btn-ghost btn-sm" type="submit">Apply to history</button>
+        </form>
+        <form method="post" action="/rules/{{ r.id }}/delete">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="btn btn-ghost btn-sm danger" type="submit">Delete</button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="sub">No rules yet. One good rule beats fifty manual edits.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2 class="card-title">Merchant aliases</h2>
+  <p class="sub">Turn <code>SQ *BLUE BOTTLE 4471</code> into <strong>Blue Bottle</strong> everywhere.</p>
+  <form method="post" action="/aliases" class="form-grid alias-form">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field">
+      <label for="a-raw">Raw merchant string</label>
+      <input class="input" id="a-raw" name="raw" placeholder="SQ *BLUE BOTTLE 4471" required>
+    </div>
+    <div class="field">
+      <label for="a-alias">Display as</label>
+      <input class="input" id="a-alias" name="alias" placeholder="Blue Bottle" required>
+    </div>
+    <div class="form-actions"><button class="btn btn-ghost" type="submit">Add alias</button></div>
+  </form>
+  {% if aliases %}
+  <ul class="history">
+    {% for a in aliases %}
+    <li><span class="muted">{{ a.pattern }}</span><span class="money">→ {{ a.alias }}</span></li>
+    {% endfor %}
+  </ul>
+  <form method="post" action="/aliases/apply" class="form-actions">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="btn btn-ghost btn-sm" type="submit">Apply aliases to history</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

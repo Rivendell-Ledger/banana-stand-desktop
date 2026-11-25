@@ -1,0 +1,39 @@
+.venv/
+.venv-*/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Runtime state — never commit
+data/
+backups/
+logs/
+secret/
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
+
+# Build output
+build/
+dist/
+*.spec.bak
+.wine-prefix/
+.wine-*/
+.verify/
+
+# Binaries belong in Releases, not in git
+*.exe
+*.msi
+*.dmg
+*.pkg
+*.AppImage
+*.deb
+*.rpm
+
+# Editor and OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

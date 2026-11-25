@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Preview import · {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow"><a href="/import">Import</a> · {{ account.name }}</p>
+    <h1>Preview</h1>
+    <p class="sub">
+      <strong>{{ preview.new_count }}</strong> new ·
+      {{ preview.duplicate_count }} already here ·
+      {{ preview.invalid_count }} unreadable
+      of {{ preview.total }} rows
+    </p>
+  </div>
+</div>
+
+{% if preview.new_count %}
+<section class="card">
+  <h2 class="card-title">What will land</h2>
+  <div class="csv-scroll">
+    <table class="csv-table preview-table">
+      <thead><tr><th>Date</th><th>Merchant</th><th>Category from file</th><th class="num">Amount</th></tr></thead>
+      <tbody>
+        {% for r in preview.rows %}
+        <tr>
+          <td>{{ r.posted_on }}</td>
+          <td>{{ r.merchant }}</td>
+          <td class="muted">{{ r.csv_category or '—' }}</td>
+          <td class="num {{ 'pos' if r.amount_cents > 0 else 'neg' }}">{{ r.amount_cents|money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if preview.new_count > preview.rows|length %}
+  <p class="field-hint">Showing the first {{ preview.rows|length }} of {{ preview.new_count }}.</p>
+  {% endif %}
+</section>
+
+<form method="post" action="/import/commit">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="token" value="{{ token }}">
+  <input type="hidden" name="account_id" value="{{ account.id }}">
+  <input type="hidden" name="filename" value="{{ filename }}">
+  <input type="hidden" name="profile_name" value="{{ profile_name }}">
+  <input type="hidden" name="date_col" value="{{ mapping.date_col }}">
+  <input type="hidden" name="desc_col" value="{{ mapping.desc_col }}">
+  <input type="hidden" name="amount_col" value="{{ mapping.amount_col if mapping.amount_col is not none else '' }}">
+  <input type="hidden" name="debit_col" value="{{ mapping.debit_col if mapping.debit_col is not none else '' }}">
+  <input type="hidden" name="credit_col" value="{{ mapping.credit_col if mapping.credit_col is not none else '' }}">
+  <input type="hidden" name="category_col" value="{{ mapping.category_col if mapping.category_col is not none else '' }}">
+  <input type="hidden" name="memo_col" value="{{ mapping.memo_col if mapping.memo_col is not none else '' }}">
+  <input type="hidden" name="date_format" value="{{ mapping.date_format }}">
+  {% if mapping.invert_sign %}<input type="hidden" name="invert_sign" value="1">{% endif %}
+
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit">Import {{ preview.new_count }} transaction{{ '' if preview.new_count == 1 else 's' }}</button>
+    <a class="btn btn-ghost" href="/import">Cancel</a>
+  </div>
+</form>
+{% else %}
+<section class="card empty-card">
+  <h2>Nothing new</h2>
+  <p class="sub">Every row in that file is already in the ledger. The fingerprint did its job — re-importing is safe.</p>
+  <p class="hero-actions"><a class="btn btn-ghost" href="/transactions">Back to transactions</a></p>
+</section>
+{% endif %}
+{% endblock %}

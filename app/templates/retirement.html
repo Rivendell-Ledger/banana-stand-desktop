@@ -1,0 +1,493 @@
+{% extends "base.html" %}
+{% block title %}Retirement · {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Plan</p>
+    <h1>Retirement</h1>
+    <p class="sub">
+      {% if result.ready %}
+        {{ result.started }} → {{ result.ends }} · age {{ plan.max_age }} · your real accounts, projected
+      {% else %}
+        A year-by-year plan built from your connected accounts
+      {% endif %}
+    </p>
+  </div>
+</div>
+
+{% set active = 'outlook' if result.ready else 'setup' %}
+<div class="page-tabs" data-tabs role="tablist" aria-label="Sections">
+  <button type="button" role="tab" class="page-tab{% if active == 'setup' %} is-active{% endif %}"
+          data-tab="setup" aria-selected="{{ 'true' if active == 'setup' else 'false' }}"
+          aria-controls="setup" id="tabbtn-setup">Setup</button>
+  <button type="button" role="tab" class="page-tab{% if active == 'outlook' %} is-active{% endif %}"
+          data-tab="outlook" aria-selected="{{ 'true' if active == 'outlook' else 'false' }}"
+          aria-controls="outlook" id="tabbtn-outlook">Outlook</button>
+  <button type="button" role="tab" class="page-tab{% if active == 'year-by-year' %} is-active{% endif %}"
+          data-tab="year-by-year" aria-selected="{{ 'true' if active == 'year-by-year' else 'false' }}"
+          aria-controls="year-by-year" id="tabbtn-year-by-year">Year by year</button>
+</div>
+
+{% if request.query_params.get('error') %}<div class="alert alert-error" role="alert">Session expired. Try again.</div>{% endif %}
+
+{% if not result.ready %}
+<section class="card">
+  <h2 class="card-title">{{ result.reason }}</h2>
+</section>
+{% endif %}
+
+<div class="tab-panel" id="setup" data-panel="setup" role="tabpanel" aria-labelledby="tabbtn-setup"{% if active != 'setup' %} hidden{% endif %}>
+<section class="card">
+  <form method="post" action="/retirement/save" class="ret-form" id="plan-inputs">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+
+    {% set freq_words = {'annual': 'a year', 'monthly': 'a month', 'semimonthly': 'twice a month',
+                         'biweekly': 'every two weeks', 'weekly': 'a week'} %}
+    {% for i in (0, 1) %}
+    {% set p = plan.people[i] %}
+    {% set inc = plan.income[i] %}
+    <details class="person-block" data-person="{{ i + 1 }}">
+      <summary class="person-summary">
+        <span class="person-title" data-person-title>Person {{ i + 1 }}{% if p.name %} — {{ p.name }}{% endif %}</span>
+        <span class="person-meta" data-person-meta>retires at {{ p.retire_age or 65 }}{% if inc.gross %} · ${{ '{:,.0f}'.format(inc.gross) }} {{ freq_words.get(inc.frequency or 'annual', 'a year') }}{% endif %}</span>
+      </summary>
+      <div class="person-body">
+        <h4 class="ret-mini">Who</h4>
+        <div class="form-grid ret-grid">
+          <div class="field">
+            <label for="p{{ i + 1 }}-name">Name <span class="optional">optional</span></label>
+            <input class="input" id="p{{ i + 1 }}-name" name="p{{ i + 1 }}_name" value="{{ p.name }}" placeholder="{{ 'You' if i == 0 else 'Spouse' }}">
+          </div>
+          <div class="field">
+            <label for="p{{ i + 1 }}-birth">Birth year</label>
+            <input class="input" id="p{{ i + 1 }}-birth" name="p{{ i + 1 }}_birth_year" inputmode="numeric"
+                   value="{{ p.birth_year or '' }}" placeholder="1985">
+          </div>
+          <div class="field">
+            <label for="p{{ i + 1 }}-retire">Retirement age</label>
+            <input class="input" id="p{{ i + 1 }}-retire" name="p{{ i + 1 }}_retire_age" inputmode="numeric"
+                   value="{{ p.retire_age or 65 }}">
+          </div>
+        </div>
+
+        <h4 class="ret-mini">Income &amp; savings</h4>
+        <div class="form-grid ret-grid">
+          <div class="field">
+            <label for="gross{{ i + 1 }}">Gross pay</label>
+            <input class="input" id="gross{{ i + 1 }}" name="gross{{ i + 1 }}" inputmode="decimal" value="{{ '%.2f'|format(inc.gross or 0) }}">
+          </div>
+          <div class="field">
+            <label for="freq{{ i + 1 }}">Paid</label>
+            <select class="input" id="freq{{ i + 1 }}" name="freq{{ i + 1 }}">
+              {% for key, label in [('annual', 'per year'), ('monthly', 'per month'), ('semimonthly', 'twice a month'), ('biweekly', 'every two weeks'), ('weekly', 'weekly')] %}
+              <option value="{{ key }}" {% if (inc.frequency or 'annual') == key %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label for="raise{{ i + 1 }}">Annual raise %</label>
+            <input class="input" id="raise{{ i + 1 }}" name="raise_{{ i + 1 }}" inputmode="decimal" value="{{ inc.raise_pct or 0 }}">
+          </div>
+          <div class="field">
+            <label for="k401-{{ i + 1 }}">401(k) contribution %</label>
+            <input class="input" id="k401-{{ i + 1 }}" name="k401_{{ i + 1 }}" inputmode="decimal" value="{{ inc.k401_pct or 0 }}">
+          </div>
+          <div class="field">
+            <label for="match-{{ i + 1 }}">Employer match %</label>
+            <input class="input" id="match-{{ i + 1 }}" name="match_{{ i + 1 }}" inputmode="decimal" value="{{ inc.match_pct or 0 }}">
+          </div>
+          <div class="field">
+            <label for="matchcap-{{ i + 1 }}">Match up to % of salary</label>
+            <input class="input" id="matchcap-{{ i + 1 }}" name="match_cap_{{ i + 1 }}" inputmode="decimal" value="{{ inc.match_up_to_pct or 0 }}">
+          </div>
+          <div class="field">
+            <label for="savings{{ i + 1 }}">Other savings / month <span class="optional">post-tax</span></label>
+            <input class="input" id="savings{{ i + 1 }}" name="savings_{{ i + 1 }}" inputmode="decimal" value="{{ '%.2f'|format(inc.savings_monthly or 0) }}">
+          </div>
+          <div class="field">
+            <label for="acct{{ i + 1 }}">Savings go to</label>
+            <select class="input" id="acct{{ i + 1 }}" name="savings_acct_{{ i + 1 }}">
+              <option value="">First brokerage account</option>
+              {% for a in account_rows %}
+              <option value="{{ a.id }}" {% if inc.savings_account_id == a.id %}selected{% endif %}>{{ a.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+    </details>
+    {% endfor %}
+
+    <details class="section-block" data-section="spending" open>
+      <summary>
+        <span class="section-title">Spending</span>
+        <span class="section-meta" data-sec-meta="spending">${{ '{:,.0f}'.format(plan.spending or 0) }} a year today{% if plan.adjustments %} · {{ plan.adjustments|length }} adjustment{{ '' if plan.adjustments|length == 1 else 's' }}{% endif %}</span>
+      </summary>
+      <div class="section-body">
+    <div class="form-grid ret-grid">
+      <div class="field">
+        <label for="spending">Retirement spending / yr <span class="optional">today's $</span></label>
+        <input class="input" id="spending" name="spending" inputmode="decimal" value="{{ '%.2f'|format(plan.spending or 0) }}">
+        <p class="field-hint">Prefilled from your last twelve months of spending. Inflates every year.</p>
+      </div>
+    </div>
+
+    <p class="ret-sub">Timed adjustments <span class="muted">— annual amount in today's dollars, added to the base</span></p>
+    <p class="field-hint">Negative amounts model something that <em>stops</em>: a mortgage or childcare ending.
+      Enter it from the year it ends, and untick <strong>Inflates</strong> so the amount stays as written.
+      The money you no longer spend stays in the portfolio instead of being withdrawn.</p>
+    <div class="adj-wrap">
+      <table class="data-table adj-table">
+        <thead>
+          <tr><th>What</th><th>Per year</th><th>Starts</th><th>Ends</th><th>Inflates</th><th></th></tr>
+        </thead>
+        <tbody id="adj-rows" data-next="{{ (plan.adjustments|length) + 1 }}">
+          {% for a in plan.adjustments %}
+          <tr>
+            <td data-label="What"><input class="input" name="adj_name_{{ loop.index0 }}" value="{{ a.name }}" placeholder="College, mortgage, travel"></td>
+            <td data-label="Per year"><input class="input" name="adj_amount_{{ loop.index0 }}" inputmode="decimal" value="{{ '%.2f'|format(a.annual or 0) }}"></td>
+            <td data-label="Starts"><input class="input" name="adj_start_{{ loop.index0 }}" inputmode="numeric" value="{{ a.start_year or '' }}" placeholder="2028"></td>
+            <td data-label="Ends"><input class="input" name="adj_end_{{ loop.index0 }}" inputmode="numeric" value="{{ a.end_year or '' }}" placeholder="forever"></td>
+            <td data-label="Inflates"><input type="checkbox" name="adj_inflates_{{ loop.index0 }}" value="1" {% if a.inflates %}checked{% endif %}></td>
+            <td><button type="button" class="btn btn-ghost btn-sm adj-del" aria-label="Remove adjustment">&#10005;</button></td>
+          </tr>
+          {% endfor %}
+          {% set blank = plan.adjustments|length %}
+          <tr>
+            <td data-label="What"><input class="input" name="adj_name_{{ blank }}" placeholder="College, mortgage, travel"></td>
+            <td data-label="Per year"><input class="input" name="adj_amount_{{ blank }}" inputmode="decimal" value=""></td>
+            <td data-label="Starts"><input class="input" name="adj_start_{{ blank }}" inputmode="numeric" value="" placeholder="2028"></td>
+            <td data-label="Ends"><input class="input" name="adj_end_{{ blank }}" inputmode="numeric" value="" placeholder="forever"></td>
+            <td data-label="Inflates"><input type="checkbox" name="adj_inflates_{{ blank }}" value="1" checked></td>
+            <td><button type="button" class="btn btn-ghost btn-sm adj-del" aria-label="Remove adjustment">&#10005;</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <button type="button" class="btn btn-ghost btn-sm" data-adj-add>+ Add another</button>
+
+    <template id="adj-template">
+      <tr>
+        <td data-label="What"><input class="input" name="adj_name___IDX__" placeholder="College, mortgage, travel"></td>
+        <td data-label="Per year"><input class="input" name="adj_amount___IDX__" inputmode="decimal" value=""></td>
+        <td data-label="Starts"><input class="input" name="adj_start___IDX__" inputmode="numeric" value="" placeholder="2028"></td>
+        <td data-label="Ends"><input class="input" name="adj_end___IDX__" inputmode="numeric" value="" placeholder="forever"></td>
+        <td data-label="Inflates"><input type="checkbox" name="adj_inflates___IDX__" value="1" checked></td>
+        <td><button type="button" class="btn btn-ghost btn-sm adj-del" aria-label="Remove adjustment">&#10005;</button></td>
+      </tr>
+    </template>
+
+    </div>
+    </details>
+
+    <details class="section-block" data-section="assumptions">
+      <summary>
+        <span class="section-title">Assumptions</span>
+        <span class="section-meta" data-sec-meta="assumptions">{{ plan.return_pct }}% return{% if plan.crypto_return_pct not in (none, '') %} · crypto {{ plan.crypto_return_pct }}%{% endif %} · {{ plan.inflation_pct }}% inflation</span>
+      </summary>
+      <div class="section-body">
+    <div class="form-grid ret-grid">
+      <div class="field">
+        <label for="return">Expected return %</label>
+        <input class="input" id="return" name="return_pct" inputmode="decimal" value="{{ plan.return_pct }}">
+      </div>
+      <div class="field">
+        <label for="crypto">Bitcoin / crypto growth % <span class="optional">if different</span></label>
+        <input class="input" id="crypto" name="crypto_return_pct" inputmode="decimal"
+               value="{{ plan.crypto_return_pct if plan.crypto_return_pct not in (none, '') else '' }}"
+               placeholder="{{ plan.return_pct }}">
+        <p class="field-hint">Applies to accounts typed crypto — including a BTC IRA. Blank uses the expected return.</p>
+      </div>
+      <div class="field">
+        <label for="volatility">Volatility % (Monte Carlo)</label>
+        <input class="input" id="volatility" name="return_volatility_pct" inputmode="decimal"
+               value="{{ plan.return_volatility_pct or 15 }}">
+      </div>
+      <div class="field">
+        <label for="inflation">Inflation %</label>
+        <input class="input" id="inflation" name="inflation_pct" inputmode="decimal" value="{{ plan.inflation_pct }}">
+      </div>
+      <div class="field">
+        <label for="state">State tax %</label>
+        <input class="input" id="state" name="state_tax_pct" inputmode="decimal" value="{{ plan.state_tax_pct }}">
+      </div>
+      <div class="field">
+        <label for="maxage">Plan to age</label>
+        <input class="input" id="maxage" name="max_age" inputmode="numeric" value="{{ plan.max_age }}">
+      </div>
+      <div class="field">
+        <label for="roth">Roth conversion / yr <span class="optional">gap years</span></label>
+        <input class="input" id="roth" name="roth_conversion" inputmode="decimal" value="{{ '%.2f'|format(plan.roth_conversion or 0) }}">
+        <p class="field-hint">Runs only after everyone retires and before Social Security starts.</p>
+      </div>
+    </div>
+
+    <p class="ret-sub">Cost basis <span class="muted">— only the gain portion of a taxable sale is taxed</span></p>
+    <div class="form-grid ret-grid">
+      <div class="field">
+        <label for="basis">Default basis % on taxable accounts</label>
+        <input class="input" id="basis" name="taxable_basis_pct" inputmode="decimal" value="{{ plan.taxable_basis_pct }}">
+        <p class="field-hint">Used where holdings don't report a basis and no per-account value is set.</p>
+      </div>
+      {% for a in account_rows if a.type == 'brokerage' %}
+      <div class="field">
+        <label for="b{{ a.id }}">{{ a.name }} basis <span class="optional">$</span></label>
+        <input class="input" id="b{{ a.id }}" name="basis_acct_{{ a.id }}" inputmode="decimal"
+               value="{{ '%.2f'|format((plan.basis_by_account or {}).get(a.id|string)) if (plan.basis_by_account or {}).get(a.id|string) not in (none, '') else '' }}"
+               placeholder="{{ '%.0f'|format(a.value_cents / 100 * (plan.taxable_basis_pct or 0) / 100) }}">
+      </div>
+      {% endfor %}
+    </div>
+
+    </div>
+    </details>
+
+    <details class="section-block" data-section="social">
+      <summary>
+        <span class="section-title">Social Security &amp; pension</span>
+        <span class="section-meta" data-sec-meta="social">SS at {{ plan.ss[0].claim_age or 67 }}{% if plan.people[1].birth_year %} / {{ plan.ss[1].claim_age or 67 }}{% endif %}{% if plan.pension.monthly %} · pension at {{ plan.pension.start_age or 65 }}{% endif %}</span>
+      </summary>
+      <div class="section-body">
+    {% for i in (0, 1) %}
+    {% set s = plan.ss[i] %}
+    <p class="ret-sub">Person {{ i + 1 }} Social Security{% if plan.people[i].name %} — {{ plan.people[i].name }}{% endif %}</p>
+    <div class="form-grid ret-grid">
+      <div class="field">
+        <label for="pia{{ i + 1 }}">Person {{ i + 1 }} SS at FRA / month</label>
+        <input class="input" id="pia{{ i + 1 }}" name="ss_pia{{ i + 1 }}" inputmode="decimal" value="{{ '%.2f'|format(s.pia or 0) }}">
+        {% if i == 0 %}<p class="field-hint">The monthly amount at <strong>full retirement age</strong> — the figure on your Social Security statement. Claiming earlier reduces it, later increases it.</p>{% endif %}
+      </div>
+      <div class="field">
+        <label for="claim{{ i + 1 }}">Claim age (62–70)</label>
+        <input class="input" id="claim{{ i + 1 }}" name="ss_claim{{ i + 1 }}" inputmode="numeric" value="{{ s.claim_age or 67 }}">
+      </div>
+    </div>
+    {% endfor %}
+    <p class="ret-sub">Pension</p>
+    <div class="form-grid ret-grid">
+      <div class="field">
+        <label for="pension">Pension / month <span class="optional">optional</span></label>
+        <input class="input" id="pension" name="pension_monthly" inputmode="decimal" value="{{ '%.2f'|format(plan.pension.monthly or 0) }}">
+      </div>
+      <div class="field">
+        <label for="pension-age">Pension starts at age</label>
+        <input class="input" id="pension-age" name="pension_start" inputmode="numeric" value="{{ plan.pension.start_age or 65 }}">
+      </div>
+    </div>
+
+    </div>
+    </details>
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Save &amp; run</button>
+      <span class="hint">The projection uses your account balances as they stand today.</span>
+    </div>
+  </form>
+</section>
+</div>
+
+{% if result.ready %}
+<div class="tab-panel" id="outlook" data-panel="outlook" role="tabpanel" aria-labelledby="tabbtn-outlook"{% if active != 'outlook' %} hidden{% endif %}>
+
+<section class="card hero ret-hero">
+  <p class="label">{% if result.succeeded %}Projected at retirement{% else %}Money runs out{% endif %}</p>
+  <p class="figure">
+    {% if result.succeeded %}{{ result.balance_at_retirement_cents|money }}{% else %}{{ result.fail_year }}{% endif %}
+  </p>
+  <p class="sub">
+    {% if result.succeeded %}
+      In {{ result.retirement_year }} ({{ result.years_to_retirement }} year{{ '' if result.years_to_retirement == 1 else 's' }} away),
+      spending {{ result.spend_at_retirement_cents|money }}/yr in that year >> {{ result.final_cents|money }} left at age {{ plan.max_age }}.
+    {% else %}
+      Spending outruns the portfolio in {{ result.fail_year }} — before age {{ plan.max_age }}.
+      Raise savings, lower the retirement spend, or push the retirement age.
+    {% endif %}
+  </p>
+</section>
+
+{% if earliest and earliest.ready %}
+<section class="card ret-earliest">
+  <p class="label">Earliest you could retire</p>
+  {% if not earliest.feasible %}
+  <p class="figure">Not yet</p>
+  <p class="sub">{{ earliest.note }}
+    {% if earliest.fail_year %}The portfolio empties in {{ earliest.fail_year }}, so nothing earlier works.{% endif %}</p>
+  {% elif earliest.years_earlier > 0 %}
+  <p class="figure">{{ earliest.ages|join(' / ') }}</p>
+  <p class="sub">
+    {{ earliest.years_earlier }} year{{ '' if earliest.years_earlier == 1 else 's' }} sooner than the
+    {{ earliest.planned|join(' / ') }} you planned, and the money still lasts to {{ plan.max_age }}.
+    {% if earliest.at_floor %}That is as low as this check looks — {{ earliest.floor }}.{% endif %}
+  </p>
+  {% else %}
+  <p class="figure">Not before {{ earliest.planned|join(' / ') }}</p>
+  <p class="sub">One year earlier and the portfolio runs out before {{ plan.max_age }}.</p>
+  {% endif %}
+  <p class="field-hint">Deterministic at {{ plan.return_pct }}% growth — not a Monte Carlo result.
+    Both retirement ages move together, so the gap between them stays as you set it.</p>
+</section>
+{% endif %}
+
+<section class="totals report-totals">
+  <div class="total">
+    <p class="label">Investable today</p>
+    <p class="total-figure">{{ result.totals.assets_cents|money }}</p>
+  </div>
+  <div class="total">
+    <p class="label">Tax-deferred</p>
+    <p class="total-figure">{{ result.totals.pretax_cents|money }}</p>
+  </div>
+  <div class="total">
+    <p class="label">Tax-free</p>
+    <p class="total-figure">{{ result.totals.taxfree_cents|money }}</p>
+  </div>
+  <div class="total">
+    <p class="label">Taxable</p>
+    <p class="total-figure">{{ result.totals.taxable_cents|money }}</p>
+  </div>
+</section>
+
+{% if mc %}
+<section class="card">
+  <div class="fc-month-head">
+    <h2 class="card-title">Monte Carlo</h2>
+    <span class="muted">{{ '{:,}'.format(mc.runs) }} randomized paths · {{ mc.volatility_pct }}% volatility</span>
+  </div>
+  <div class="totals report-totals">
+    <div class="total">
+      <p class="label">Success rate</p>
+      <p class="total-figure {{ 'pos' if mc.success_pct >= 80 else 'neg' }}">{{ mc.success_pct }}%</p>
+      <p class="field-hint">±{{ mc.success_ci_pct }}pp · {{ '{:,}'.format(mc.runs) }} paths</p>
+    </div>
+    <div class="total">
+      <p class="label">Median at {{ plan.max_age }}</p>
+      <p class="total-figure">{{ mc.median_cents|money }}</p>
+    </div>
+    <div class="total">
+      <p class="label">10th percentile at {{ plan.max_age }}</p>
+      <p class="total-figure">{{ mc.p10_cents|money }}</p>
+      {% if mc.p10_runout_year %}<p class="field-hint">Bottom 10% is out of money by {{ mc.p10_runout_year }}</p>{% endif %}
+    </div>
+    <div class="total">
+      <p class="label">90th percentile at {{ plan.max_age }}</p>
+      <p class="total-figure">{{ mc.p90_cents|money }}</p>
+    </div>
+  </div>
+  <p class="field-hint">Share of {{ '{:,}'.format(mc.runs) }} paths where the money lasts to age {{ plan.max_age }}.
+    Each path draws a lognormal annual return around {{ plan.return_pct }}% with {{ mc.volatility_pct }}% volatility,
+    then runs the same tax, withdrawal and RMD rules as the plan above.
+    A {{ '$0' }} ending means that path ran out before age {{ plan.max_age }}.</p>
+</section>
+{% endif %}
+
+<section class="card">
+  <div class="fc-month-head">
+    <h2 class="card-title">Portfolio through retirement</h2>
+    <span class="muted">{{ plan.return_pct }}% return{% if plan.crypto_return_pct not in (none, '') %} · crypto {{ plan.crypto_return_pct }}%{% endif %} · {{ plan.inflation_pct }}% inflation</span>
+  </div>
+  {% set chart = mc.chart if mc and mc.chart else result.chart %}
+  <div class="chart-wrap chart-wrap-plan">
+    <div class="chart-yaxis" aria-hidden="true">
+      {% for t in chart.ticks|reverse %}<span>{{ t.label }}</span>{% endfor %}
+    </div>
+    <div class="chart-scroll">
+      <svg class="plan-chart" viewBox="0 0 {{ chart.width }} {{ chart.height }}"
+           preserveAspectRatio="none" role="img" aria-label="Projected portfolio balance by year"
+           data-scrub data-format="money"
+           data-labels='{{ chart.labels|tojson }}'
+           data-series='{{ (chart.series + (mc.chart_series if mc else []))|tojson }}'
+           data-geom='{{ {"lo": 0, "hi": chart.hi, "w": chart.width, "h": chart.height, "pad": 6}|tojson }}'>
+        {% for y in chart.grid %}<line class="plan-grid" x1="0" x2="{{ chart.width }}" y1="{{ y }}" y2="{{ y }}"></line>
+        {% endfor %}
+        {% if not (mc and mc.chart_bands) %}<polygon class="plan-area" points="{{ chart.area }}"></polygon>{% endif %}
+        {% if mc and mc.chart_bands %}
+        <polygon class="mc-band" points="{{ mc.chart_bands.band }}"></polygon>
+        <polyline class="mc-mean" points="{{ mc.chart_bands.mean }}" vector-effect="non-scaling-stroke"></polyline>
+        <polyline class="mc-median" points="{{ mc.chart_bands.median }}" vector-effect="non-scaling-stroke"></polyline>
+        {% endif %}
+        <polyline class="plan-line" points="{{ chart.points }}" vector-effect="non-scaling-stroke"></polyline>
+        <g class="perf-pick" aria-hidden="true">
+          <line class="perf-rule" x1="0" x2="0" y1="0" y2="{{ chart.height }}" vector-effect="non-scaling-stroke"></line>
+          <circle class="perf-pdot perf-portfolio" r="4.5" cx="-20" cy="-20"></circle>
+        </g>
+      </svg>
+      <div class="chart-axis" aria-hidden="true">
+        <span>{{ result.started }}</span><span>{{ result.ends }}</span>
+      </div>
+    </div>
+  </div>
+  <div class="flow-legend perf-legend">
+    <span class="perf-day" data-chart-day>{{ result.started }} – {{ result.ends }}</span>
+    <span><i class="perf-dot perf-portfolio"></i>Portfolio
+      <b class="perf-value" data-chart-value="portfolio">{{ result.final_cents|money }}</b></span>
+    {% if mc and mc.chart_bands %}
+    <span><i class="mc-swatch-band"></i>25th–75th percentile
+      <b class="perf-value" data-chart-value="p25">{{ mc.chart_bands.p25_end|money }}</b> –
+      <b class="perf-value" data-chart-value="p75">{{ mc.chart_bands.p75_end|money }}</b></span>
+    <span><i class="mc-swatch-median"></i>Median balance
+      <b class="perf-value" data-chart-value="p50">{{ mc.chart_bands.p50_end|money }}</b></span>
+    <span><i class="mc-swatch-mean"></i>Average balance
+      <b class="perf-value" data-chart-value="mean">{{ mc.chart_bands.mean_end|money }}</b></span>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Where the money is</h2>
+  <p class="sub">Read from your connected accounts — the projection treats each by its tax class.
+    Edit balances on <a href="/accounts">Accounts</a>.</p>
+  <ul class="ret-accounts">
+    {% for a in account_rows %}
+    <li>
+      <span class="ret-acct-name">{{ a.name }}</span>
+      <span class="chip chip-muted">{{ a.type_label }}</span>
+      <span class="ret-acct-value">{{ a.value_cents|money }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% if excluded_equity %}
+  <p class="sub ret-excluded">
+    Not counted: {{ excluded_equity|money }}{% if excluded_equity_names %} ({{ excluded_equity_names|join(', ') }}){% endif %}.
+    Property and 529 savings are earmarked for something else, so they stay in net worth and out of this projection.
+  </p>
+  {% endif %}
+</section>
+
+</div>
+<div class="tab-panel" id="year-by-year" data-panel="year-by-year" role="tabpanel" aria-labelledby="tabbtn-year-by-year"{% if active != 'year-by-year' %} hidden{% endif %}>
+<section class="card">
+  <div class="table-wrap">
+    <table class="data-table ret-table">
+      <thead>
+        <tr>
+          <th>Year</th><th>Age</th><th>Portfolio</th><th>Spending</th>
+          <th>Salary</th><th>SS</th><th>Pension</th><th>RMD</th>
+          <th>Withdrawn</th><th>Tax</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for y in result.years %}
+        <tr class="{% if not result.succeeded and y.year == result.fail_year %}is-over{% endif %}">
+          <td data-label="Year"><b>{{ y.year }}</b>
+            {% if y.early %}<span class="chip chip-pending" title="Pre-tax money taken before 59½">early</span>{% endif %}
+            {% if y.conversion_cents %}<span class="chip chip-muted" title="Traditional to Roth">Roth {{ y.conversion_cents|money }}</span>{% endif %}
+          </td>
+          <td data-label="Age">{{ y.age1 }}{% if y.age2 %} / {{ y.age2 }}{% endif %}</td>
+          <td class="num" data-label="Portfolio">{{ y.portfolio_cents|money }}</td>
+          <td class="num" data-label="Spending">{{ y.spending_cents|money }}</td>
+          <td class="num" data-label="Salary">{{ y.employment_cents|money }}</td>
+          <td class="num" data-label="SS">{{ y.ss_cents|money }}</td>
+          <td class="num" data-label="Pension">{{ y.pension_cents|money }}</td>
+          <td class="num" data-label="RMD">{{ y.rmd_cents|money }}</td>
+          <td class="num" data-label="Withdrawn">{{ y.withdrawn_cents|money }}</td>
+          <td class="num" data-label="Tax">{{ y.tax_cents|money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+</div>
+{% endif %}
+{% endblock %}

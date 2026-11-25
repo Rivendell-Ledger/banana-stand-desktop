@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Recovery kit · {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Setup · step 3 of 3</p>
+    <h1>Make a recovery kit</h1>
+  </div>
+</div>
+
+{% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
+
+<section class="card">
+  <h2 class="card-title">Why this matters</h2>
+  <p class="sub">Your bank connections are protected by an encryption key stored in this app's data folder. The nightly backups copy the database but not that key.</p>
+  <p class="sub">If the key is lost, nothing in your ledger disappears — but every bank has to be linked again. The recovery kit is one small file that avoids that.</p>
+  <ul class="steps">
+    <li><span class="step-n">1</span><span>Choose a passphrase you will remember. It encrypts the kit; nobody can open the file without it.</span></li>
+    <li><span class="step-n">2</span><span>Download the kit and move it somewhere off this computer — a USB drive, your password manager, or cloud storage.</span></li>
+    <li><span class="step-n">3</span><span>Keep the passphrase separate from the file. The kit alone is useless to anyone who finds it.</span></li>
+  </ul>
+  <p class="field-hint">Do not save the kit inside the Banana Stand data folder. It belongs somewhere a disk failure cannot take with it.</p>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Create the kit</h2>
+  <form method="post" action="/setup/recovery/export" class="auth-form" novalidate>
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field">
+      <label for="passphrase">Passphrase</label>
+      <input class="input" id="passphrase" name="passphrase" type="password"
+             autocomplete="new-password" required minlength="{{ min_pass }}">
+      <span class="field-hint">At least {{ min_pass }} characters. This is not your login password.</span>
+    </div>
+    <div class="field">
+      <label for="confirm">Confirm passphrase</label>
+      <input class="input" id="confirm" name="confirm" type="password"
+             autocomplete="new-password" required minlength="{{ min_pass }}">
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Download recovery kit</button>
+      <span class="hint">The file is encrypted with your passphrase — keep it off this computer and keep the passphrase separate from it.</span>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Finish</h2>
+  <form method="post" action="/setup/recovery/done">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label class="check">
+      <input type="checkbox" name="ack" value="1">
+      <span>Skip the kit for now — I understand losing this computer means re-linking every bank.</span>
+    </label>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Finish setup</button>
+      <span class="hint">You can make or restore a kit later in Settings → Recovery kit.</span>
+    </div>
+  </form>
+</section>
+{% endblock %}

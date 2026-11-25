@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Recovery kit · {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Settings</p>
+    <h1>Recovery kit</h1>
+  </div>
+  <a class="btn btn-ghost" href="/settings">Back to settings</a>
+</div>
+
+{% if restored %}<div class="alert alert-ok">Recovery kit restored. Your encryption key and Plaid credentials are back in place.</div>{% endif %}
+{% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
+
+<section class="card">
+  <h2 class="card-title">What the kit protects</h2>
+  <p class="sub">The kit contains the key that decrypts your stored bank tokens, plus your Plaid credentials, all wrapped in a passphrase you choose.</p>
+  <p class="sub">Without the key, your ledger still has every transaction, but each bank must be linked again. Keep the kit off this computer, and keep the passphrase separate from it.</p>
+  <p class="field-hint">{{ 'A key exists on this computer.' if has_key else 'No encryption key exists yet — it is created the first time you connect a bank or download a kit.' }}</p>
+  <p class="field-hint">If a kit will not open, run <code>KitDoctor.exe</code> in the install folder. Its <code>check</code> and <code>inspect</code> commands explain the failure without printing any secret.</p>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Download a new kit</h2>
+  <form method="post" action="/settings/recovery/export" class="auth-form" novalidate>
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field">
+      <label for="passphrase">Passphrase</label>
+      <input class="input" id="passphrase" name="passphrase" type="password"
+             autocomplete="new-password" required minlength="{{ min_pass }}">
+      <span class="field-hint">At least {{ min_pass }} characters.</span>
+    </div>
+    <div class="field">
+      <label for="confirm">Confirm passphrase</label>
+      <input class="input" id="confirm" name="confirm" type="password"
+             autocomplete="new-password" required minlength="{{ min_pass }}">
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Download recovery kit</button>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Restore from a kit</h2>
+  <p class="sub">Moving to a new computer, or lost the key? Paste the kit file's contents and its passphrase.</p>
+  <form method="post" action="/settings/recovery/import" class="auth-form" novalidate>
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field">
+      <label for="kit">Kit contents</label>
+      <textarea class="input" id="kit" name="kit" rows="8" spellcheck="false"
+                placeholder="Paste the whole file, including the BANANA-STAND RECOVERY KIT line." required></textarea>
+    </div>
+    <div class="field">
+      <label for="import_passphrase">Passphrase</label>
+      <input class="input" id="import_passphrase" name="passphrase" type="password"
+             autocomplete="off" required>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Restore kit</button>
+      <span class="hint">The current key is backed up first, never overwritten silently.</span>
+    </div>
+  </form>
+</section>
+{% endblock %}

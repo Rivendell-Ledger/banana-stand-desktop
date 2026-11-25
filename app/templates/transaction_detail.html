@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}{{ txn.merchant }} · {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow"><a href="/transactions">Transactions</a></p>
+    <h1 class="detail-title">{{ txn.merchant }}</h1>
+    <p class="sub">{{ txn.posted_on|datefmt }} · {{ txn.account_name }}</p>
+  </div>
+  <div class="head-actions">
+    <a class="btn btn-ghost btn-sm" href="/transactions">← Back to Transactions</a>
+    <span class="detail-amount {{ 'pos' if txn.amount_cents > 0 else 'neg' }}">{{ txn.amount_cents|money }}</span>
+    {% if txn.is_pending %}
+    <form method="post" action="/transactions/{{ txn.id }}/posted">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="btn btn-ghost btn-sm" type="submit">Mark posted</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if request.query_params.get('saved') %}<div class="alert alert-ok">Saved.</div>{% endif %}
+{% if request.query_params.get('error') %}<div class="alert alert-error" role="alert">Merchant, date, and amount are required.</div>{% endif %}
+{% if request.query_params.get('splits') %}<div class="alert alert-error" role="alert">{{ request.query_params.get('splits')|replace('+', ' ') }}</div>{% endif %}
+{% if txn.deleted_at %}<div class="alert alert-error" role="alert">This transaction is in the trash.</div>{% endif %}
+
+<section class="card">
+  <h2 class="card-title">Details</h2>
+  <form method="post" action="/transactions/{{ txn.id }}/update" class="form-grid">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field">
+      <label for="d-merchant">Merchant</label>
+      <input class="input" id="d-merchant" name="merchant" value="{{ txn.merchant }}" required>
+    </div>
+    <div class="field">
+      <label for="d-date">Date</label>
+      <input class="input" id="d-date" name="posted_on" type="date" value="{{ txn.posted_on }}">
+    </div>
+    <div class="field">
+      <label for="d-amount">Amount</label>
+      <input class="input" id="d-amount" name="amount" value="{{ '%.2f'|format(txn.amount_cents / 100) }}" inputmode="decimal">
+      <p class="field-hint">Negative is money out. Keep the sign when you edit.</p>
+    </div>
+    <div class="field">
+      <label for="d-category">Category</label>
+      <select class="input" id="d-category" name="category_id" {% if txn.splits %}disabled{% endif %}>
+        <option value="">Uncategorized</option>
+        {% for c in categories %}
+        <option value="{{ c.id }}" {% if txn.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+      {% if txn.splits %}<p class="field-hint">Split across {{ txn.splits|length }} categories — edit the lines below.</p>{% endif %}
+    </div>
+    <div class="field field-wide">
+      <label for="d-notes">Notes</label>
+      <textarea class="input" id="d-notes" name="notes" rows="3">{{ txn.notes or '' }}</textarea>
+    </div>
+    <div class="check-row">
+      <label class="check"><input type="checkbox" name="is_pending" {% if txn.is_pending %}checked{% endif %}><span>Pending</span></label>
+      <label class="check"><input type="checkbox" name="excluded" {% if txn.excluded %}checked{% endif %}><span>Exclude from reports</span></label>
+      <label class="check"><input type="checkbox" name="is_transfer" {% if txn.is_transfer %}checked{% endif %}><span>Transfer between accounts</span></label>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Save</button>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Tags</h2>
+  <form method="post" action="/transactions/{{ txn.id }}/tags" class="inline-edit wide">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label class="sr-only" for="d-tags">Tags</label>
+    <input class="input" id="d-tags" name="tags" value="{{ txn.tags|join(', ') }}" placeholder="Add a tag">
+    <button class="btn btn-ghost" type="submit">Save tags</button>
+  </form>
+  <p class="field-hint">Comma separated. Tags are shared across the household.</p>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Splits</h2>
+  {% if txn.splits %}
+  <ul class="history">
+    {% for s in txn.splits %}
+    <li><span>{{ s.category_name or 'Uncategorized' }}{% if s.note %} · {{ s.note }}{% endif %}</span><span class="money">{{ s.amount_cents|money }}</span></li>
+    {% endfor %}
+  </ul>
+  <p class="sub">Split total {{ split_total|money }} · transaction {{ txn.amount_cents|money }}</p>
+  <form method="post" action="/transactions/{{ txn.id }}/splits/clear" class="form-actions">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="category_id" value="{{ txn.category_id or '' }}">
+    <button class="btn btn-ghost btn-sm" type="submit">Remove splits</button>
+  </form>
+  {% else %}
+  <p class="sub">Split this transaction across categories. The lines must add up to {{ txn.amount_cents|money }}.</p>
+  <form method="post" action="/transactions/{{ txn.id }}/splits" class="split-form" data-total="{{ txn.amount_cents }}">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    {% for i in range(2) %}
+    <div class="split-row">
+      <select class="input" name="split_category" aria-label="Split category">
+        {% for c in categories if c.kind != 'transfer' %}
+        <option value="{{ c.id }}" {% if i == 0 and txn.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+      <input class="input" name="split_amount" inputmode="decimal" placeholder="−0.00" aria-label="Split amount"
+             {% if i == 0 %}value="{{ '%.2f'|format(txn.amount_cents / 100) }}"{% endif %}>
+      <input class="input" name="split_note" placeholder="note" aria-label="Split note">
+    </div>
+    {% endfor %}
+    <p class="split-check" id="split-check" aria-live="polite"></p>
+    <div class="form-actions"><button class="btn btn-ghost" type="submit">Save splits</button></div>
+  </form>
+  {% endif %}
+</section>
+
+<section class="danger-zone">
+  {% if txn.deleted_at %}
+  <form method="post" action="/transactions/{{ txn.id }}/restore">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="next" value="/transactions/{{ txn.id }}">
+    <button class="btn btn-ghost" type="submit">Restore transaction</button>
+  </form>
+  {% else %}
+  <form method="post" action="/transactions/{{ txn.id }}/delete">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="next" value="/transactions">
+    <button class="btn btn-ghost danger" type="submit">Delete transaction</button>
+  </form>
+  <p class="field-hint">Goes to the trash. Nothing is gone for good yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

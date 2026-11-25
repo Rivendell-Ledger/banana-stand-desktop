@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Plaid credentials · {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Settings</p>
+    <h1>Plaid credentials</h1>
+  </div>
+  <a class="btn btn-ghost" href="/settings">Back to settings</a>
+</div>
+
+{% if saved %}<div class="alert alert-ok">Keys verified and saved. They take effect immediately — no restart needed.</div>{% endif %}
+{% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
+{% if stored.unreadable %}
+<div class="alert alert-error" role="alert">
+  Saved keys exist but cannot be decrypted — the encryption key no longer matches this data folder.
+  Restore your <a href="/settings/recovery">recovery kit</a>, or paste the keys again below.
+</div>
+{% endif %}
+
+<section class="card">
+  <h2 class="card-title">Status</h2>
+  <div class="conn-head">
+    <span class="chip {{ 'chip-pending' if plaid_env == 'sandbox' else 'chip-tag' }}">{{ plaid_env }}</span>
+    <span class="sub">{{ slots_used }} of {{ slots_max }} Item slots used</span>
+    <span class="sub">{{ 'Keys saved' if plaid_ready else 'Not configured' }}</span>
+  </div>
+  <p class="field-hint">Keys are stored encrypted in this app's data folder, next to the ledger. They are never sent anywhere except Plaid.</p>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Update keys</h2>
+  <form method="post" action="/settings/plaid" class="auth-form" novalidate>
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field">
+      <label for="client_id">Client ID</label>
+      <input class="input" id="client_id" name="client_id" type="text" autocomplete="off"
+             spellcheck="false" value="{{ stored.client_id }}">
+    </div>
+    <div class="field">
+      <label for="secret">Secret</label>
+      <input class="input" id="secret" name="secret" type="password" autocomplete="off"
+             spellcheck="false" placeholder="{{ 'Saved — leave blank to keep it' if stored.secret else 'Production secret' }}">
+    </div>
+    <div class="field">
+      <label for="environment">Environment</label>
+      <select class="input" id="environment" name="environment">
+        <option value="production" {{ 'selected' if (stored.env or 'production') == 'production' else '' }}>Production (real banks)</option>
+        <option value="sandbox" {{ 'selected' if stored.env == 'sandbox' else '' }}>Sandbox (test data only)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="max_items">Item slots</label>
+      <input class="input" id="max_items" name="max_items" type="number" min="1" max="200"
+             value="{{ stored.max_items or 10 }}">
+      <span class="field-hint">Match the number your Plaid dashboard grants. The Trial includes <strong>10</strong>.</span>
+    </div>
+    <label class="check">
+      <input type="checkbox" name="ack" value="1" {{ 'checked' if stored.env == 'production' else '' }}>
+      <span>These keys connect to real financial institutions.</span>
+    </label>
+    {% if slots_used %}
+    <div class="alert alert-info">
+      You have {{ slots_used }} linked bank{{ '' if slots_used == 1 else 's' }}. Changing the
+      Client ID or the environment invalidates {{ 'that connection' if slots_used == 1 else 'those connections' }};
+      you will have to link again after saving.
+    </div>
+    <label class="check">
+      <input type="checkbox" name="confirm_rekey" value="1">
+      <span>I understand — I am prepared to re-link my banks.</span>
+    </label>
+    {% endif %}
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Test and save</button>
+      <span class="hint">Saving tests the keys with Plaid first; a bad key is never stored.</span>
+    </div>
+  </form>
+</section>
+{% endblock %}

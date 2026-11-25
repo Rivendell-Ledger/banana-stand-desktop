@@ -1,0 +1,78 @@
+{% macro primary_nav(cls) -%}
+{%- set p = request.url.path -%}
+<nav class="{{ cls }}" aria-label="Primary">
+  <a href="/" class="{{ 'active' if p == '/' else '' }}">Home</a>
+  <a href="/transactions" class="{{ 'active' if p.startswith('/transactions') or p.startswith('/trash') else '' }}">Transactions</a>
+  <a href="/budget" class="{{ 'active' if p.startswith(('/budget','/bills','/forecast','/goals')) else '' }}">Budget</a>
+  <a href="/reports" class="{{ 'active' if p.startswith('/reports') else '' }}">Reports</a>
+  <a href="/accounts" class="{{ 'active' if p.startswith(('/accounts','/portfolio')) else '' }}">Accounts</a>
+  <a href="/net-worth" class="{{ 'active' if p.startswith('/net-worth') else '' }}">Net worth</a>
+  <a href="/retirement" class="{{ 'active' if p.startswith('/retirement') else '' }}">Retirement</a>
+</nav>
+{%- endmacro %}
+<!doctype html>
+<html lang="en" data-theme="dark"{% if request.cookies.get("bs_privacy") == "1" %} class="is-private"{% endif %}>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <link rel="icon" href="/static/img/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="icon" href="/static/img/favicon-48.png" sizes="48x48" type="image/png">
+  <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="/static/css/tokens.css?v={{ version }}">
+  <link rel="stylesheet" href="/static/css/app.css?v={{ version }}">
+  <meta name="csrf" content="{{ csrf }}">
+</head>
+<body>
+  {% block chrome %}
+  <header class="topbar">
+    <a class="brand" href="/">
+      <img class="brand-mark" src="/static/img/banana-mark.png" alt="" width="24" height="24">
+      <span class="brand-word">Banana Stand</span>
+    </a>
+
+    {% if user %}
+    <div class="userbox">
+      <button type="button" class="icon-btn eye-btn" data-privacy aria-pressed="false"
+              aria-label="Privacy mode" title="Privacy mode">
+        <svg class="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.8"/></svg>
+        <svg class="eye-off" width="18" height="18" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 6.1A9.9 9.9 0 0 1 12 6c6.4 0 10 6 10 6a17 17 0 0 1-3.2 3.9"/><path d="M6.3 7.9A16.4 16.4 0 0 0 2 12s3.6 6 10 6a9.7 9.7 0 0 0 4.2-.9"/><path d="M9.9 9.9a2.9 2.9 0 0 0 4.2 4.2"/></svg>
+      </button>
+      <a class="icon-btn" href="/settings" aria-label="Settings" title="Settings">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+        <circle cx="12" cy="12" r="3.2"/>
+        <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/>
+      </svg>
+    </a>
+            <span class="user-name">{{ user.display_name }}</span>
+      <form method="post" action="/logout" class="inline-form">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="btn btn-ghost btn-sm" type="submit">Sign out</button>
+      </form>
+    </div>
+    {% endif %}
+  </header>
+  {% if user %}{{ primary_nav('tabbar') }}{% endif %}
+  {% endblock %}
+
+  <main class="{% block mainclass %}page{% endblock %}">
+    {% block content %}{% endblock %}
+  </main>
+
+  {% block footer %}
+  <footer class="foot">
+    <span>{{ app_name }} · v{{ version }}</span>
+    <span class="foot-dot">·</span>
+    <span>{{ now|datelong }}</span>
+  </footer>
+  {% endblock %}
+
+  <script src="/static/js/app.js?v={{ version }}" defer></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
