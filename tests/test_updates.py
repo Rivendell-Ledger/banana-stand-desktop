@@ -66,6 +66,31 @@ def test_parse_version_is_numeric_not_lexical():
     assert not updates.is_newer("1.21.11", "1.21.12")
 
 
+def test_prerelease_releases_are_candidates():
+    """Every early build is a prerelease, and /releases/latest ignores those."""
+    releases = [
+        {"tag_name": "v1.21.14", "prerelease": True, "draft": False, "html_url": "u14"},
+        {"tag_name": "v1.21.13", "prerelease": True, "draft": False, "html_url": "u13"},
+        {"tag_name": "v9.9.9", "prerelease": False, "draft": True, "html_url": "draft"},
+        {"tag_name": "", "prerelease": False, "draft": False},
+    ]
+    picked = updates._pick_latest(releases)
+    assert picked is not None
+    assert picked["latest"] == "1.21.14"
+    assert picked["prerelease"] is True
+    assert picked["url"] == "u14"
+
+
+def test_a_newer_prerelease_raises_the_banner(client, monkeypatch):
+    make_household(client)
+    monkeypatch.setattr(updates, "_fetch_latest", lambda: {
+        "latest": NEWER, "url": "https://example.test/rel", "published": "", "prerelease": True})
+    updates.set_enabled(1, True)
+    updates.refresh(1)
+    notice = updates.notice(1)
+    assert notice is not None and notice["latest"] == NEWER
+
+
 def test_disabled_by_default_and_never_calls_out(client, monkeypatch):
     make_household(client)
     assert updates.enabled(1) is False
@@ -124,6 +149,29 @@ def test_same_or_older_release_shows_no_banner(client, monkeypatch):
     updates.set_enabled(1, True)
     updates.refresh(1)
     assert updates.notice(1) is None
+
+
+def test_a_new_build_rechecks_instead_of_trusting_the_old_cache(client, monkeypatch):
+    make_household(client)
+    calls = []
+
+    def fake_fetch():
+        calls.append(1)
+        return {"latest": NEWER, "url": "https://example.test/rel", "published": ""}
+
+    monkeypatch.setattr(updates, "_fetch_latest", fake_fetch)
+    updates.set_enabled(1, True)
+    updates.refresh(1)
+    assert len(calls) == 1
+
+    # Simulate the cache having been written by a previous version of the app.
+    record = updates._record(1)
+    record["app_version"] = "0.0.1"
+    from app import settings_store
+    settings_store.set(1, updates.CACHE_KEY, record)
+
+    updates.refresh(1)
+    assert len(calls) == 2
 
 
 def test_offline_failure_is_silent_and_still_stamped(client, monkeypatch):

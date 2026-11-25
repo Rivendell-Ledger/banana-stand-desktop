@@ -1765,6 +1765,23 @@ def settings_page(request: Request, linked: int = 0, error: str = ""):
     )
 
 
+def _wants_json(request: Request) -> bool:
+    """Settings forms post with fetch: reply with a status instead of a redirect."""
+    return request.headers.get("x-requested-with") == "fetch"
+
+
+def _saved(request: Request, section: str, message: str = "Saved."):
+    if _wants_json(request):
+        return JSONResponse({"ok": True, "message": message})
+    return redirect(f"/settings?saved={section}")
+
+
+def _save_error(request: Request, message: str):
+    if _wants_json(request):
+        return JSONResponse({"ok": False, "error": message}, status_code=400)
+    return redirect("/settings?pwerr=" + quote(message))
+
+
 @app.post("/settings/password")
 def settings_password(
     request: Request,
@@ -1777,21 +1794,21 @@ def settings_password(
     if user is None:
         return redirect("/login")
     if not csrf_ok(request, csrf):
-        return redirect("/settings?pwerr=Session+expired.+Try+again.#security")
+        return _save_error(request, "Session expired. Try again.")
     row = db.query_one("SELECT password_hash FROM users WHERE id = ?", (user["id"],))
     if row is None or not security.verify_password(row["password_hash"], current):
-        return redirect("/settings?pwerr=" + quote("Current password is incorrect.") + "#security")
+        return _save_error(request, "Current password is incorrect.")
     if password != password2:
-        return redirect("/settings?pwerr=" + quote("The two new passwords don't match.") + "#security")
+        return _save_error(request, "The two new passwords don't match.")
     problem = security.password_problem(password)
     if problem:
-        return redirect("/settings?pwerr=" + quote(problem) + "#security")
+        return _save_error(request, problem)
     db.execute("UPDATE users SET password_hash = ? WHERE id = ?",
                (security.hash_password(password), user["id"]))
     # Keep the browser that made the change; drop every other session.
     db.execute("DELETE FROM sessions WHERE user_id = ? AND id != ?", (user["id"], user["session_id"]))
     audit("user.password_changed", request, user)
-    return redirect("/settings?saved=password#security")
+    return _saved(request, "password", "Password changed. Other signed-in devices were signed out.")
 
 
 @app.post("/settings/hint")
@@ -1800,14 +1817,14 @@ def settings_hint(request: Request, csrf: str = Form(""), hint: str = Form("")):
     if user is None:
         return redirect("/login")
     if not csrf_ok(request, csrf):
-        return redirect("/settings?pwerr=Session+expired.+Try+again.#security")
+        return _save_error(request, "Session expired. Try again.")
     problem = security.hint_problem(hint)
     if problem:
-        return redirect("/settings?pwerr=" + quote(problem) + "#security")
+        return _save_error(request, problem)
     db.execute("UPDATE users SET password_hint = ? WHERE id = ?",
                (security.clean_hint(hint) or None, user["id"]))
     audit("user.hint_changed", request, user)
-    return redirect("/settings?saved=hint#security")
+    return _saved(request, "hint", "Hint saved.")
 
 
 @app.post("/settings/updates")
@@ -1821,14 +1838,14 @@ def settings_updates(
     if user is None:
         return redirect("/login")
     if not csrf_ok(request, csrf):
-        return redirect("/settings?pwerr=Session+expired.+Try+again.#updates")
+        return _save_error(request, "Session expired. Try again.")
     hid = user["household_id"]
     on = bool(check)
     updates.set_enabled(hid, on)
     audit("settings.update_check", request, user, enabled=on, force=bool(force))
     if on:
         updates.refresh_async(hid, force=bool(force))
-    return redirect("/settings?saved=updates#updates")
+    return _saved(request, "updates", "Saved.")
 
 
 @app.post("/settings/plaid/ack")
@@ -3424,7 +3441,7 @@ def settings_household(request: Request, csrf: str = Form(""), household: str = 
     if user is None:
         return redirect("/login")
     if not csrf_ok(request, csrf):
-        return redirect("/settings?error=csrf")
+        return _save_error(request, "Session expired. Try again.")
     hid = user["household_id"]
     name = (household or "").strip()[:80]
     current = db.query_one("SELECT name, buffer_cents FROM households WHERE id = ?", (hid,))
@@ -3433,13 +3450,13 @@ def settings_household(request: Request, csrf: str = Form(""), household: str = 
         try:
             cents = max(0, money.parse_money(buffer) or 0)
         except ValueError:
-            return redirect("/settings?error=That+buffer+is+not+a+number.")
+            return _save_error(request, "That buffer is not a number.")
     if name:
         db.execute("UPDATE households SET name = ?, buffer_cents = ? WHERE id = ?", (name, cents, hid))
     else:
         db.execute("UPDATE households SET buffer_cents = ? WHERE id = ?", (cents, hid))
     audit("household.updated", request, user, buffer_cents=cents)
-    return redirect("/settings?saved=1")
+    return _saved(request, "household", "Household saved.")
 
 
 @app.get("/settings/audit", response_class=HTMLResponse)

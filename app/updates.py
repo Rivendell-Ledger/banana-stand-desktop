@@ -19,11 +19,14 @@ from . import config, settings_store
 logger = logging.getLogger("banana.updates")
 
 REPO = "Rivendell-Ledger/banana-stand-desktop"
-API_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
+# /releases/latest skips prereleases, and every early build here is one: it answers
+# 404 and nothing is ever announced. List instead, then pick the newest ourselves.
+API_URL = f"https://api.github.com/repos/{REPO}/releases?per_page=20"
 RELEASES_URL = f"https://github.com/{REPO}/releases"
 ENABLED_KEY = "update_check_enabled"
 CACHE_KEY = "update_check_cache"
 TTL_SECONDS = 6 * 60 * 60
+RETRY_SECONDS = 15 * 60
 TIMEOUT_SECONDS = 6
 
 _lock = threading.Lock()
@@ -51,6 +54,25 @@ def is_newer(latest: str, current: str | None = None) -> bool:
     return parse_version(latest) > parse_version(current or config.VERSION)
 
 
+def _pick_latest(releases: list) -> dict | None:
+    """Newest by version, drafts skipped and prereleases included."""
+    best: dict | None = None
+    for rel in releases:
+        if not isinstance(rel, dict) or rel.get("draft"):
+            continue
+        tag = str(rel.get("tag_name") or "").strip()
+        if not tag:
+            continue
+        if best is None or parse_version(tag) > parse_version(best["latest"]):
+            best = {
+                "latest": tag.lstrip("vV"),
+                "url": rel.get("html_url") or RELEASES_URL,
+                "published": rel.get("published_at") or "",
+                "prerelease": bool(rel.get("prerelease")),
+            }
+    return best
+
+
 def _fetch_latest() -> dict | None:
     request = urllib.request.Request(
         API_URL,
@@ -60,16 +82,10 @@ def _fetch_latest() -> dict | None:
         },
     )
     with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as resp:  # noqa: S310 - fixed host
-        payload = json.loads(resp.read(200_000).decode("utf-8"))
-    tag = str(payload.get("tag_name") or "").strip()
-    if not tag:
+        payload = json.loads(resp.read(400_000).decode("utf-8"))
+    if not isinstance(payload, list):
         return None
-    return {
-        "latest": tag.lstrip("vV"),
-        "url": payload.get("html_url") or RELEASES_URL,
-        "published": payload.get("published_at") or "",
-        "checked_at": time.time(),
-    }
+    return _pick_latest(payload)
 
 
 def _record(household_id: int) -> dict:
@@ -77,8 +93,19 @@ def _record(household_id: int) -> dict:
 
 
 def _is_fresh(record: dict) -> bool:
+    now = time.time()
+    # A new build checks immediately instead of trusting the old build's answer.
+    if record.get("app_version") != config.VERSION:
+        return False
     try:
-        return (time.time() - float(record.get("checked_at") or 0)) < TTL_SECONDS
+        retry_at = float(record.get("retry_at") or 0)
+    except (TypeError, ValueError):
+        retry_at = 0
+    if retry_at:
+        # A failed check retries sooner than a successful one.
+        return now < retry_at
+    try:
+        return (now - float(record.get("checked_at") or 0)) < TTL_SECONDS
     except (TypeError, ValueError):
         return False
 
@@ -101,12 +128,16 @@ def refresh(household_id: int, force: bool = False) -> dict | None:
             logger.debug("update check failed: %s", exc)
             fetched = None
         if fetched is None:
-            # Keep whatever we knew; stamp the attempt so we do not retry in a loop.
+            # Keep whatever we knew; back off briefly instead of retrying per launch.
             record = dict(record)
             record["checked_at"] = time.time()
+            record["retry_at"] = time.time() + RETRY_SECONDS
+            record["app_version"] = config.VERSION
         else:
             record = dict(fetched)
             record["checked_at"] = time.time()
+            record["app_version"] = config.VERSION
+            record.pop("retry_at", None)
         settings_store.set(household_id, CACHE_KEY, record)
         return record
 

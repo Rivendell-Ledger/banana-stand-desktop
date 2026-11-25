@@ -1193,4 +1193,56 @@
   });
 
 
+  // Settings forms save in place: no reload, so nothing jumps and only the
+  // section that saved reports it.
+  document.querySelectorAll("form[data-save]").forEach((form) => {
+    const status = form.querySelector("[data-save-status]");
+    form.addEventListener("submit", async (event) => {
+      if (!window.fetch || !status) return; // fall back to a normal POST
+      event.preventDefault();
+
+      const button = event.submitter || form.querySelector('button[type="submit"]');
+      const body = new FormData(form);
+      if (event.submitter && event.submitter.name) {
+        body.append(event.submitter.name, event.submitter.value);
+      }
+      // The global submit guard has already swapped the label for "Working…";
+      // it stashed the real one in dataset.label on its way through.
+      const label = button ? (button.dataset.label || button.textContent) : "";
+      if (button) {
+        button.disabled = true;
+        button.textContent = "Saving…";
+      }
+      status.className = "save-status";
+      status.textContent = "";
+
+      try {
+        const res = await fetch(form.action, {
+          method: "POST",
+          body,
+          headers: { "X-Requested-With": "fetch" },
+          credentials: "same-origin",
+        });
+        const data = await res.json().catch(() => ({ ok: res.ok }));
+        if (data.ok) {
+          status.textContent = data.message || "Saved.";
+          status.className = "save-status ok";
+        } else {
+          status.textContent = data.error || "Could not save.";
+          status.className = "save-status err";
+        }
+      } catch (err) {
+        status.textContent = "Could not save. Check your connection.";
+        status.className = "save-status err";
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.textContent = label;
+          delete button.dataset.label;
+        }
+      }
+    });
+  });
+
+
 })();
