@@ -114,6 +114,10 @@ untouched, and bank connections stay linked.
 - Binds `127.0.0.1` by default. LAN access is opt-in, off until you turn it on.
 - Bank tokens encrypted with a per-installation key; database, backups and key file are mode 600.
 - No telemetry, no third-party scripts, no CDN.
+- **Update check is off by default.** If you turn it on in Settings, the app makes one
+  unauthenticated request to GitHub's public release API every six hours to read the newest version
+  number. It sends no account, no identifier and nothing about your ledger. Offline failures are
+  silent.
 
 See [SECURITY.md](SECURITY.md) for how to report a vulnerability.
 

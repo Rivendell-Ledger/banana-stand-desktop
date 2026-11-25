@@ -61,6 +61,13 @@
   {% endblock %}
 
   <main class="{% block mainclass %}page{% endblock %}">
+    {% if update_notice %}
+    <div class="alert alert-info update-banner" role="status">
+      Version {{ update_notice.latest }} is available —
+      <a href="{{ update_notice.url }}" target="_blank" rel="noopener">release notes</a>.
+      You are on {{ update_notice.current }}.
+    </div>
+    {% endif %}
     {% block content %}{% endblock %}
   </main>
 

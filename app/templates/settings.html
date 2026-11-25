@@ -196,6 +196,33 @@
   </form>
 </section>
 
+<section class="card" id="updates">
+  <h2 class="card-title">Updates</h2>
+  {% if saved == 'updates' %}<div class="alert alert-ok">Saved.</div>{% endif %}
+  {% if update_notice %}
+  <div class="alert alert-info">
+    Version {{ update_notice.latest }} is available.
+    <a href="{{ update_notice.url }}" target="_blank" rel="noopener">Release notes</a>
+  </div>
+  {% endif %}
+  <form method="post" action="/settings/updates">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label class="check">
+      <input type="checkbox" name="check" value="1" {% if update_check %}checked{% endif %}>
+      <span>Tell me when a new version is released</span>
+    </label>
+    <p class="field-hint">
+      Off by default. When it is on, the app asks GitHub's public release API once every six hours
+      what the newest version is. Nothing about you, your household or your ledger is sent.
+      You are on v{{ version }}.
+    </p>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Save</button>
+      <button class="btn btn-ghost" type="submit" name="force" value="1">Check now</button>
+    </div>
+  </form>
+</section>
+
 <section class="card">
   <h2 class="card-title">Manage</h2>
   <ul class="history">

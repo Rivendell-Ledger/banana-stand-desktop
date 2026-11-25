@@ -60,6 +60,10 @@ jobs:
           if ($version -notmatch '^\d+\.\d+\.\d+') {
             throw "Release tags must look like v1.2.3 (got '$version')"
           }
+          $declared = (Select-String -Path app/config.py -Pattern '^VERSION = "([^"]+)"').Matches[0].Groups[1].Value
+          if ("${{ github.ref_type }}" -eq "tag" -and $declared -ne $version) {
+            throw "app/config.py declares $declared but the tag is $version - bump it before tagging."
+          }
           "version=$version" >> $env:GITHUB_OUTPUT
           Write-Host "Building version $version"
 

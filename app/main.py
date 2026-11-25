@@ -29,7 +29,8 @@ from starlette.middleware.gzip import GZipMiddleware
 
 from . import (alerts, bitcoin, budgets, categories, config, csv_import, db, forecast, goals,
                maintenance, market, money, networth, performance, plaid, plaid_sync, portfolio,
-               recovery, recurring, reports, retirement, rules, security, settings_store, txns)
+               recovery, recurring, reports, retirement, rules, security, settings_store, txns,
+               updates)
 
 # ---------------------------------------------------------------- logging
 logger = logging.getLogger("banana")
@@ -63,6 +64,8 @@ async def lifespan(_app: FastAPI):
         for row in db.query_all("SELECT id FROM households"):
             networth.recalc(row["id"])
             txns.ensure_system_categories(row["id"])
+            if updates.enabled(row["id"]):
+                updates.refresh_async(row["id"])
     except Exception:  # noqa: BLE001
         logger.exception("net worth startup snapshot failed")
     logger.info("banana stand %s ready on %s", config.VERSION, config.DB_PATH)
@@ -344,6 +347,9 @@ def render(request: Request, template: str, status_code: int = 200, **ctx):
         "greeting": greeting,
         "year": now.year,
     }
+    owner = base["user"]
+    if owner:
+        base["update_notice"] = updates.notice(owner["household_id"])
     base.update(ctx)
     return templates.TemplateResponse(request, template, base, status_code=status_code)
 
@@ -1736,6 +1742,8 @@ def settings_page(request: Request, linked: int = 0, error: str = ""):
         saved=request.query_params.get("saved"),
         hint=(hint_row["password_hint"] if hint_row else "") or "",
         pwerr=request.query_params.get("pwerr", ""),
+        update_check=updates.enabled(hid),
+        update_notice=updates.notice(hid),
     )
 
 
@@ -1782,6 +1790,27 @@ def settings_hint(request: Request, csrf: str = Form(""), hint: str = Form("")):
                (security.clean_hint(hint) or None, user["id"]))
     audit("user.hint_changed", request, user)
     return redirect("/settings?saved=hint#security")
+
+
+@app.post("/settings/updates")
+def settings_updates(
+    request: Request,
+    csrf: str = Form(""),
+    check: str = Form(""),
+    force: str = Form(""),
+):
+    user = _require_or_redirect(request)
+    if user is None:
+        return redirect("/login")
+    if not csrf_ok(request, csrf):
+        return redirect("/settings?pwerr=Session+expired.+Try+again.#updates")
+    hid = user["household_id"]
+    on = bool(check)
+    updates.set_enabled(hid, on)
+    audit("settings.update_check", request, user, enabled=on, force=bool(force))
+    if on:
+        updates.refresh_async(hid, force=bool(force))
+    return redirect("/settings?saved=updates#updates")
 
 
 @app.post("/settings/plaid/ack")
