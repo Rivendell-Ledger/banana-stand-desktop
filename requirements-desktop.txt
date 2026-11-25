@@ -2,4 +2,4 @@
 markupsafe==3.0.3
 tzdata==2025.2
 pystray==0.19.5
-Pillow==11.3.0
+Pillow==13.0.0
