@@ -37,7 +37,7 @@ def set_setting(household_id: int, key: str, value) -> None:
 def alert_key(alert: dict) -> str:
     """Stable across evaluations so a dismissal sticks to the same alert."""
     raw = "|".join(str(alert.get(part) or "") for part in ("kind", "title", "detail"))
-    return hashlib.sha1(raw.encode()).hexdigest()[:12]
+    return hashlib.sha1(raw.encode(), usedforsecurity=False).hexdigest()[:12]
 
 
 def dismissed_keys(household_id: int, day: str) -> set[str]:

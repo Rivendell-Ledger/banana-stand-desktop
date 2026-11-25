@@ -317,3 +317,20 @@ def test_login_handle_can_be_a_plain_username(client):
                                     "password": PASSWORD}, follow_redirects=False)
     # Desktop builds route a fresh household into the guided bank-connect step.
     assert r.headers["location"] == "/setup/connect"
+
+
+def test_api_schema_is_not_served(client):
+    """Routing metadata is not a public map of the app."""
+    for path in ("/openapi.json", "/docs", "/redoc"):
+        assert client.get(path, follow_redirects=False).status_code == 404
+
+
+def test_security_headers_on_every_response(client):
+    r = client.get("/login", follow_redirects=False)
+    csp = r.headers["Content-Security-Policy"]
+    assert "default-src 'self'" in csp
+    assert "frame-ancestors 'none'" in csp
+    assert "script-src 'self'" in csp
+    assert r.headers["X-Content-Type-Options"] == "nosniff"
+    assert r.headers["Referrer-Policy"] == "same-origin"
+    assert "noindex" in r.headers["X-Robots-Tag"]
