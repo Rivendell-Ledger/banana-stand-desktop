@@ -2,7 +2,10 @@
 ; Build with:  iscc BananaStand.iss   (from the repo root, after PyInstaller)
 
 #define AppName "The Banana Stand"
-#define AppVersion "1.21.10"
+; CI passes the release tag: iscc /DAppVersion=1.21.10 BananaStand.iss
+#ifndef AppVersion
+  #define AppVersion "1.21.10"
+#endif
 #define AppExe "BananaStand.exe"
 
 [Setup]
