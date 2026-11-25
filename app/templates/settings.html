@@ -152,34 +152,80 @@
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <div class="field">
       <label for="pw-current">Current password</label>
-      <input class="input" id="pw-current" name="current" type="password"
-             autocomplete="current-password" required>
+      <div class="pw-field">
+        <input class="input" id="pw-current" name="current" type="password"
+               autocomplete="current-password" required>
+        <button class="pw-toggle" type="button" data-reveal="pw-current" aria-pressed="false"
+                aria-controls="pw-current" aria-label="Show password" title="Show password">
+          <svg class="eye-on" width="19" height="19" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+               stroke-linejoin="round" aria-hidden="true">
+            <path d="M1.8 12S5.4 6.2 12 6.2 22.2 12 22.2 12 18.6 17.8 12 17.8 1.8 12 1.8 12Z"/>
+            <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>
+          </svg>
+          <svg class="eye-off" width="19" height="19" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+               stroke-linejoin="round" aria-hidden="true">
+            <path d="M1.8 12S5.4 6.2 12 6.2 22.2 12 22.2 12 18.6 17.8 12 17.8 1.8 12 1.8 12Z"/>
+            <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>
+            <path d="M3.5 3.5l17 17"/>
+          </svg>
+        </button>
+      </div>
     </div>
     <div class="field">
       <label for="pw-new">New password</label>
-      <div class="pw-row">
+      <div class="pw-field">
         <input class="input" id="pw-new" name="password" type="password"
                autocomplete="new-password" minlength="8" required placeholder="At least 8 characters">
-        <button class="btn btn-ghost btn-sm" type="button" data-reveal="pw-new"
-                aria-pressed="false" aria-controls="pw-new">Show</button>
+        <button class="pw-toggle" type="button" data-reveal="pw-new" aria-pressed="false"
+                aria-controls="pw-new" aria-label="Show password" title="Show password">
+          <svg class="eye-on" width="19" height="19" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+               stroke-linejoin="round" aria-hidden="true">
+            <path d="M1.8 12S5.4 6.2 12 6.2 22.2 12 22.2 12 18.6 17.8 12 17.8 1.8 12 1.8 12Z"/>
+            <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>
+          </svg>
+          <svg class="eye-off" width="19" height="19" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+               stroke-linejoin="round" aria-hidden="true">
+            <path d="M1.8 12S5.4 6.2 12 6.2 22.2 12 22.2 12 18.6 17.8 12 17.8 1.8 12 1.8 12Z"/>
+            <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>
+            <path d="M3.5 3.5l17 17"/>
+          </svg>
+        </button>
       </div>
     </div>
     <div class="field">
       <label for="pw-confirm">Confirm new password</label>
-      <div class="pw-row">
+      <div class="pw-field">
         <input class="input" id="pw-confirm" name="password2" type="password"
                autocomplete="new-password" minlength="8" required placeholder="Type it again">
-        <button class="btn btn-ghost btn-sm" type="button" data-reveal="pw-confirm"
-                aria-pressed="false" aria-controls="pw-confirm">Show</button>
+        <button class="pw-toggle" type="button" data-reveal="pw-confirm" aria-pressed="false"
+                aria-controls="pw-confirm" aria-label="Show password" title="Show password">
+          <svg class="eye-on" width="19" height="19" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+               stroke-linejoin="round" aria-hidden="true">
+            <path d="M1.8 12S5.4 6.2 12 6.2 22.2 12 22.2 12 18.6 17.8 12 17.8 1.8 12 1.8 12Z"/>
+            <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>
+          </svg>
+          <svg class="eye-off" width="19" height="19" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+               stroke-linejoin="round" aria-hidden="true">
+            <path d="M1.8 12S5.4 6.2 12 6.2 22.2 12 22.2 12 18.6 17.8 12 17.8 1.8 12 1.8 12Z"/>
+            <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>
+            <path d="M3.5 3.5l17 17"/>
+          </svg>
+        </button>
       </div>
     </div>
     <div class="form-actions">
       <button class="btn btn-primary" type="submit">Change password</button>
-      <span class="hint">Other signed-in devices are signed out.</span>
+      <span class="form-note">Other signed-in devices are signed out.</span>
     </div>
   </form>
 
-  <form method="post" action="/settings/hint" class="form-grid">
+  <form method="post" action="/settings/hint" class="form-grid card-divider">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <div class="field">
       <label for="hint">Password hint</label>
@@ -194,6 +240,7 @@
       <button class="btn btn-primary" type="submit">Save hint</button>
     </div>
   </form>
+
 </section>
 
 <section class="card" id="updates">

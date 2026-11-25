@@ -233,11 +233,12 @@ def redirect(url: str, status: int = 303) -> RedirectResponse:
     return RedirectResponse(url=url, status_code=status)
 
 
-def set_session_cookie(response, request: Request, token: str) -> None:
+def set_session_cookie(response, request: Request, token: str, days: int | None = None) -> None:
+    days = days or config.SESSION_DAYS
     response.set_cookie(
         "bs_session",
         token,
-        max_age=config.SESSION_DAYS * 86400,
+        max_age=days * 86400,
         httponly=True,
         samesite="lax",
         secure=_cookie_secure(request),
@@ -245,8 +246,9 @@ def set_session_cookie(response, request: Request, token: str) -> None:
     )
 
 
-def start_session(request: Request, user_id: int) -> str:
+def start_session(request: Request, user_id: int, days: int | None = None) -> str:
     """Create a session row and return the opaque token for the cookie."""
+    days = days or config.SESSION_DAYS
     token = security.new_session_token()
     now_dt = datetime.now(timezone.utc)
     db.execute(
@@ -258,7 +260,7 @@ def start_session(request: Request, user_id: int) -> str:
             security.hash_token(token),
             now_dt.isoformat(timespec="seconds"),
             now_dt.isoformat(timespec="seconds"),
-            (now_dt + timedelta(days=config.SESSION_DAYS)).isoformat(timespec="seconds"),
+            (now_dt + timedelta(days=days)).isoformat(timespec="seconds"),
             client_ip(request),
             request.headers.get("user-agent", "")[:300],
         ),
@@ -481,7 +483,8 @@ def login_page(request: Request, created: int = 0):
         return redirect("/setup")
     if current_user(request):
         return redirect("/")
-    return render(request, "login.html", created=bool(created))
+    remembered = request.cookies.get("bs_last_user", "")
+    return render(request, "login.html", created=bool(created), email=remembered, remember=bool(remembered))
 
 
 @app.post("/login", response_class=HTMLResponse)
@@ -490,9 +493,11 @@ def login_submit(
     csrf: str = Form(""),
     email: str = Form(...),
     password: str = Form(...),
+    remember: str = Form(""),
 ):
     if not csrf_ok(request, csrf):
-        return render(request, "login.html", status_code=400, error="Session expired. Try again.", email=email)
+        return render(request, "login.html", status_code=400, error="Session expired. Try again.",
+                      email=email, remember=bool(remember))
     email = security.normalize_login(email)
     ip = client_ip(request)
 
@@ -504,6 +509,7 @@ def login_submit(
             status_code=429,
             error=f"Too many attempts. Try again in {max(1, wait // 60)} minutes.",
             email=email,
+            remember=bool(remember),
         )
 
     row = db.query_one(
@@ -513,16 +519,28 @@ def login_submit(
     if row is None or not security.verify_password(row["password_hash"], password):
         security.throttle.fail(ip, email)
         audit("login.failed", request, {"id": row["id"] if row else None, "household_id": row["household_id"] if row else None}, email=email)
-        return render(request, "login.html", status_code=401, error="Email or password is incorrect.", email=email)
+        return render(request, "login.html", status_code=401, error="Email or password is incorrect.",
+                      email=email, remember=bool(remember))
 
     security.throttle.reset(ip, email)
-    token = start_session(request, row["id"])
+    keep = bool(remember)
+    days = config.REMEMBER_DAYS if keep else config.SESSION_DAYS
+    token = start_session(request, row["id"], days)
     db.execute("UPDATE users SET last_login_at = ?, failed_logins = 0 WHERE id = ?", (db.utcnow(), row["id"]))
     audit("login.success", request, dict(row))
 
     response = redirect("/setup/connect" if not settings_store.get(
         row["household_id"], "desktop_setup_done", False) else "/")
-    set_session_cookie(response, request, token)
+    set_session_cookie(response, request, token, days)
+    if keep:
+        # Pre-fill the name next time. The session itself is what keeps them in.
+        response.set_cookie(
+            "bs_last_user", email,
+            max_age=config.REMEMBER_DAYS * 86400,
+            httponly=True, samesite="lax", secure=_cookie_secure(request), path="/",
+        )
+    else:
+        response.delete_cookie("bs_last_user", path="/")
     return response
 
 

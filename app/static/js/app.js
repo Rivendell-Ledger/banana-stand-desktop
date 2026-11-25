@@ -1139,14 +1139,27 @@
   });
 
   // Password reveal buttons: [data-reveal] names the input to unmask.
+  // mousedown is cancelled so the button never takes focus or moves the caret.
   document.querySelectorAll("[data-reveal]").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("mousedown", (event) => event.preventDefault());
+
+    btn.addEventListener("click", (event) => {
+      event.preventDefault();
       const input = document.getElementById(btn.dataset.reveal);
       if (!input) return;
-      const show = input.type === "password";
-      input.type = show ? "text" : "password";
-      btn.textContent = show ? "Hide" : "Show";
-      btn.setAttribute("aria-pressed", show ? "true" : "false");
+      const reveal = input.type === "password";
+      input.type = reveal ? "text" : "password";
+      btn.setAttribute("aria-pressed", reveal ? "true" : "false");
+      const label = reveal ? "Hide password" : "Show password";
+      btn.setAttribute("aria-label", label);
+      btn.title = label;
+      input.focus({ preventScroll: true });
+      const end = input.value.length;
+      try {
+        input.setSelectionRange(end, end);
+      } catch (err) {
+        /* some browsers refuse setSelectionRange on type=password; focus is enough */
+      }
     });
   });
 

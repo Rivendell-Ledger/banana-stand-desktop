@@ -30,24 +30,52 @@
     </div>
     <div class="field">
       <label for="password">Password</label>
-      <div class="pw-row">
+      <div class="pw-field">
         <input class="input" id="password" name="password" type="password" required
                autocomplete="new-password" minlength="8" placeholder="At least 8 characters">
-        <button class="btn btn-ghost btn-sm" type="button" data-reveal="password"
-                aria-pressed="false" aria-controls="password">Show</button>
+        <button class="pw-toggle" type="button" data-reveal="password" aria-pressed="false"
+                aria-controls="password" aria-label="Show password" title="Show password">
+          <svg class="eye-on" width="19" height="19" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+               stroke-linejoin="round" aria-hidden="true">
+            <path d="M1.8 12S5.4 6.2 12 6.2 22.2 12 22.2 12 18.6 17.8 12 17.8 1.8 12 1.8 12Z"/>
+            <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>
+          </svg>
+          <svg class="eye-off" width="19" height="19" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+               stroke-linejoin="round" aria-hidden="true">
+            <path d="M1.8 12S5.4 6.2 12 6.2 22.2 12 22.2 12 18.6 17.8 12 17.8 1.8 12 1.8 12Z"/>
+            <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>
+            <path d="M3.5 3.5l17 17"/>
+          </svg>
+        </button>
       </div>
     </div>
     <div class="field">
       <label for="password2">Confirm password</label>
-      <div class="pw-row">
+      <div class="pw-field">
         <input class="input" id="password2" name="password2" type="password" required
                autocomplete="new-password" minlength="8" placeholder="Type it again">
-        <button class="btn btn-ghost btn-sm" type="button" data-reveal="password2"
-                aria-pressed="false" aria-controls="password2">Show</button>
+        <button class="pw-toggle" type="button" data-reveal="password2" aria-pressed="false"
+                aria-controls="password2" aria-label="Show password" title="Show password">
+          <svg class="eye-on" width="19" height="19" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+               stroke-linejoin="round" aria-hidden="true">
+            <path d="M1.8 12S5.4 6.2 12 6.2 22.2 12 22.2 12 18.6 17.8 12 17.8 1.8 12 1.8 12Z"/>
+            <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>
+          </svg>
+          <svg class="eye-off" width="19" height="19" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+               stroke-linejoin="round" aria-hidden="true">
+            <path d="M1.8 12S5.4 6.2 12 6.2 22.2 12 22.2 12 18.6 17.8 12 17.8 1.8 12 1.8 12Z"/>
+            <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>
+            <path d="M3.5 3.5l17 17"/>
+          </svg>
+        </button>
       </div>
     </div>
     <div class="field">
-      <label for="hint">Password hint <span class="muted">(optional)</span></label>
+      <label for="hint">Password hint <span class="optional">optional</span></label>
       <input class="input" id="hint" name="hint" type="text" maxlength="80"
              value="{{ form.hint if form else '' }}"
              placeholder="Something that jogs your memory">

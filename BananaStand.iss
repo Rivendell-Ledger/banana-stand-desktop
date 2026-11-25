@@ -4,7 +4,7 @@
 #define AppName "The Banana Stand"
 ; CI passes the release tag: iscc /DAppVersion=1.21.10 BananaStand.iss
 #ifndef AppVersion
-  #define AppVersion "1.21.13"
+  #define AppVersion "1.21.14"
 #endif
 #define AppExe "BananaStand.exe"
 

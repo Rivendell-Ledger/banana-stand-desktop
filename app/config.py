@@ -26,7 +26,7 @@ _load_dotenv(BASE_DIR / ".env")
 
 APP_NAME = "The Banana Stand"
 APP_SLUG = "banana-stand"
-VERSION = "1.21.13"  # keep in step with the release tag; CI fails a tag that disagrees
+VERSION = "1.21.14"  # keep in step with the release tag; CI fails a tag that disagrees
 
 # Guard: a pytest run that skipped tests/conftest.py has no BANANA_DATA set and would
 # otherwise point at the live database (the test fixture deletes DB_PATH before migrating).
@@ -47,6 +47,7 @@ STATIC_DIR = BASE_DIR / "app" / "static"
 
 TIMEZONE = "America/New_York"
 SESSION_DAYS = 30
+REMEMBER_DAYS = 365
 LOGIN_MAX_ATTEMPTS = 5
 LOGIN_WINDOW_MINUTES = 15
 MIN_PASSWORD_LENGTH = 8
