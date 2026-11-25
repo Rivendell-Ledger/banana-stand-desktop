@@ -44,11 +44,6 @@
     </div>
 
     <div class="field">
-      <label for="mask">Last 4 <span class="optional">optional</span></label>
-      <input class="input" id="mask" name="mask" inputmode="numeric" maxlength="4" value="{{ form.mask or '' }}" placeholder="4821">
-    </div>
-
-    <div class="field">
       <label for="balance" data-balance-label>Current balance</label>
       <input class="input" id="balance" name="balance" inputmode="decimal" required
              value="{{ form.balance or '' }}" placeholder="0.00" data-balance-input>

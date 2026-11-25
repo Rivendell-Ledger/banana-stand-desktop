@@ -1138,5 +1138,46 @@
     svg.addEventListener("lostpointercapture", end);
   });
 
+  // Password reveal buttons: [data-reveal] names the input to unmask.
+  document.querySelectorAll("[data-reveal]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const input = document.getElementById(btn.dataset.reveal);
+      if (!input) return;
+      const show = input.type === "password";
+      input.type = show ? "text" : "password";
+      btn.textContent = show ? "Hide" : "Show";
+      btn.setAttribute("aria-pressed", show ? "true" : "false");
+    });
+  });
+
+  // "Forgot it? Show hint" on the sign-in page.
+  document.querySelectorAll("[data-hint-for]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const source = document.getElementById(btn.dataset.hintFor);
+      const output = document.getElementById(btn.dataset.hintTarget);
+      const token = document.querySelector('input[name="csrf"]');
+      if (!output) return;
+      try {
+        const body = new URLSearchParams({
+          csrf: token ? token.value : "",
+          handle: source ? source.value : "",
+        });
+        const res = await fetch("/login/hint", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body,
+        });
+        const data = await res.json();
+        output.hidden = false;
+        output.textContent = data.hint
+          ? "Hint: " + data.hint
+          : "No hint is set for that name. Try the name you used at setup.";
+      } catch (err) {
+        output.hidden = false;
+        output.textContent = "Could not read the hint. Try again.";
+      }
+    });
+  });
+
 
 })();

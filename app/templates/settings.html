@@ -142,6 +142,60 @@
 </section>
 {% endif %}
 
+<section class="card" id="security">
+  <h2 class="card-title">Security</h2>
+  {% if pwerr %}<div class="alert alert-error" role="alert">{{ pwerr }}</div>{% endif %}
+  {% if saved == 'password' %}<div class="alert alert-ok">Password changed. Other signed-in devices were signed out.</div>{% endif %}
+  {% if saved == 'hint' %}<div class="alert alert-ok">Hint saved.</div>{% endif %}
+
+  <form method="post" action="/settings/password" class="form-grid">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field">
+      <label for="pw-current">Current password</label>
+      <input class="input" id="pw-current" name="current" type="password"
+             autocomplete="current-password" required>
+    </div>
+    <div class="field">
+      <label for="pw-new">New password</label>
+      <div class="pw-row">
+        <input class="input" id="pw-new" name="password" type="password"
+               autocomplete="new-password" minlength="8" required placeholder="At least 8 characters">
+        <button class="btn btn-ghost btn-sm" type="button" data-reveal="pw-new"
+                aria-pressed="false" aria-controls="pw-new">Show</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="pw-confirm">Confirm new password</label>
+      <div class="pw-row">
+        <input class="input" id="pw-confirm" name="password2" type="password"
+               autocomplete="new-password" minlength="8" required placeholder="Type it again">
+        <button class="btn btn-ghost btn-sm" type="button" data-reveal="pw-confirm"
+                aria-pressed="false" aria-controls="pw-confirm">Show</button>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Change password</button>
+      <span class="hint">Other signed-in devices are signed out.</span>
+    </div>
+  </form>
+
+  <form method="post" action="/settings/hint" class="form-grid">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field">
+      <label for="hint">Password hint</label>
+      <input class="input" id="hint" name="hint" maxlength="80" value="{{ hint }}"
+             placeholder="No hint set">
+      <p class="field-hint">
+        Shown on the sign-in page if you draw a blank. Anyone who can open this app can read it,
+        so never put the password — or a piece of it — in here. Leave it empty to remove the hint.
+      </p>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Save hint</button>
+    </div>
+  </form>
+</section>
+
 <section class="card">
   <h2 class="card-title">Manage</h2>
   <ul class="history">

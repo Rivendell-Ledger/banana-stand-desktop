@@ -242,6 +242,27 @@ def set_session_cookie(response, request: Request, token: str) -> None:
     )
 
 
+def start_session(request: Request, user_id: int) -> str:
+    """Create a session row and return the opaque token for the cookie."""
+    token = security.new_session_token()
+    now_dt = datetime.now(timezone.utc)
+    db.execute(
+        "INSERT INTO sessions(id, user_id, token_hash, created_at, last_seen_at, expires_at, ip, user_agent)"
+        " VALUES (?,?,?,?,?,?,?,?)",
+        (
+            secrets.token_hex(16),
+            user_id,
+            security.hash_token(token),
+            now_dt.isoformat(timespec="seconds"),
+            now_dt.isoformat(timespec="seconds"),
+            (now_dt + timedelta(days=config.SESSION_DAYS)).isoformat(timespec="seconds"),
+            client_ip(request),
+            request.headers.get("user-agent", "")[:300],
+        ),
+    )
+    return token
+
+
 _NO_USER = object()
 
 
@@ -398,6 +419,7 @@ def setup_submit(
     email: str = Form(""),
     password: str = Form(...),
     password2: str = Form(...),
+    hint: str = Form(""),
 ):
     if has_users():
         return redirect("/login")
@@ -408,14 +430,17 @@ def setup_submit(
     if not security.valid_name(name):
         return render(request, "setup.html", status_code=400,
                       error="Your name needs 2-40 characters: letters, digits, spaces, dots, dashes or apostrophes.",
-                      form={"household": household, "name": name})
+                      form={"household": household, "name": name, "hint": hint})
     # The UI sends only a name; API callers may still supply an explicit handle.
     email = security.normalize_login(email or name)
     if password != password2:
-        return render(request, "setup.html", status_code=400, error="The two passwords don't match.", form={"household": household, "name": name})
+        return render(request, "setup.html", status_code=400, error="The two passwords don't match.", form={"household": household, "name": name, "hint": hint})
     problem = security.password_problem(password)
     if problem:
-        return render(request, "setup.html", status_code=400, error=problem, form={"household": household, "name": name})
+        return render(request, "setup.html", status_code=400, error=problem, form={"household": household, "name": name, "hint": hint})
+    problem = security.hint_problem(hint)
+    if problem:
+        return render(request, "setup.html", status_code=400, error=problem, form={"household": household, "name": name, "hint": hint})
 
     now = db.utcnow()
     with db.session_scope() as conn:
@@ -425,15 +450,23 @@ def setup_submit(
             (household.strip() or config.APP_NAME, "USD", config.TIMEZONE, 150000, 6, now),
         )
         household_id = cur.lastrowid
-        conn.execute(
-            "INSERT INTO users(household_id, email, display_name, password_hash, created_at)"
-            " VALUES (?,?,?,?,?)",
-            (household_id, email, name.strip(), security.hash_password(password), now),
+        cur = conn.execute(
+            "INSERT INTO users(household_id, email, display_name, password_hash, password_hint, created_at)"
+            " VALUES (?,?,?,?,?,?)",
+            (household_id, email, name.strip(), security.hash_password(password),
+             security.clean_hint(hint) or None, now),
         )
+        user_id = int(cur.lastrowid or 0)
+        if not user_id:
+            raise HTTPException(status_code=500, detail="Could not create the account.")
 
-    audit("setup.completed", request, {"household_id": household_id, "id": None, "email": email})
+    audit("setup.completed", request, {"household_id": household_id, "id": user_id, "email": email})
     logger.info("household created: %s", household_id)
-    return redirect("/login?created=1")
+    # Sign the new owner straight in: the login page is for later visits, not the setup flow.
+    token = start_session(request, user_id)
+    response = redirect("/setup/connect")
+    set_session_cookie(response, request, token)
+    return response
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -477,22 +510,7 @@ def login_submit(
         return render(request, "login.html", status_code=401, error="Email or password is incorrect.", email=email)
 
     security.throttle.reset(ip, email)
-    token = security.new_session_token()
-    now_dt = datetime.now(timezone.utc)
-    db.execute(
-        "INSERT INTO sessions(id, user_id, token_hash, created_at, last_seen_at, expires_at, ip, user_agent)"
-        " VALUES (?,?,?,?,?,?,?,?)",
-        (
-            secrets.token_hex(16),
-            row["id"],
-            security.hash_token(token),
-            now_dt.isoformat(timespec="seconds"),
-            now_dt.isoformat(timespec="seconds"),
-            (now_dt + timedelta(days=config.SESSION_DAYS)).isoformat(timespec="seconds"),
-            ip,
-            request.headers.get("user-agent", "")[:300],
-        ),
-    )
+    token = start_session(request, row["id"])
     db.execute("UPDATE users SET last_login_at = ?, failed_logins = 0 WHERE id = ?", (db.utcnow(), row["id"]))
     audit("login.success", request, dict(row))
 
@@ -500,6 +518,25 @@ def login_submit(
         row["household_id"], "desktop_setup_done", False) else "/")
     set_session_cookie(response, request, token)
     return response
+
+
+@app.post("/login/hint")
+def login_hint(request: Request, csrf: str = Form(""), handle: str = Form("")):
+    """The user's own hint, for the sign-in page.
+
+    It is stored in clear text by design: it has to be readable before anyone is
+    signed in. Anyone who can open the app can read it, so the UI warns against
+    putting the password in it.
+    """
+    if not csrf_ok(request, csrf):
+        return JSONResponse({"hint": ""}, status_code=400)
+    if not has_users():
+        return JSONResponse({"hint": ""}, status_code=404)
+    row = db.query_one(
+        "SELECT password_hint FROM users WHERE email = ?",
+        (security.normalize_login(handle),),
+    )
+    return JSONResponse({"hint": (row["password_hint"] or "") if row else ""})
 
 
 @app.post("/logout")
@@ -1681,6 +1718,7 @@ def settings_page(request: Request, linked: int = 0, error: str = ""):
     if linked and not settings_store.get(hid, "desktop_setup_done", False):
         # The wizard's Connect button lands here; bring the user back to the wizard.
         return redirect("/setup/connect?connected=1")
+    hint_row = db.query_one("SELECT password_hint FROM users WHERE id = ?", (user["id"],))
     return render(
         request,
         "settings.html",
@@ -1696,7 +1734,54 @@ def settings_page(request: Request, linked: int = 0, error: str = ""):
         backups=maintenance.backup_status(),
         household=db.query_one("SELECT name, buffer_cents FROM households WHERE id = ?", (hid,)),
         saved=request.query_params.get("saved"),
+        hint=(hint_row["password_hint"] if hint_row else "") or "",
+        pwerr=request.query_params.get("pwerr", ""),
     )
+
+
+@app.post("/settings/password")
+def settings_password(
+    request: Request,
+    csrf: str = Form(""),
+    current: str = Form(""),
+    password: str = Form(""),
+    password2: str = Form(""),
+):
+    user = _require_or_redirect(request)
+    if user is None:
+        return redirect("/login")
+    if not csrf_ok(request, csrf):
+        return redirect("/settings?pwerr=Session+expired.+Try+again.#security")
+    row = db.query_one("SELECT password_hash FROM users WHERE id = ?", (user["id"],))
+    if row is None or not security.verify_password(row["password_hash"], current):
+        return redirect("/settings?pwerr=" + quote("Current password is incorrect.") + "#security")
+    if password != password2:
+        return redirect("/settings?pwerr=" + quote("The two new passwords don't match.") + "#security")
+    problem = security.password_problem(password)
+    if problem:
+        return redirect("/settings?pwerr=" + quote(problem) + "#security")
+    db.execute("UPDATE users SET password_hash = ? WHERE id = ?",
+               (security.hash_password(password), user["id"]))
+    # Keep the browser that made the change; drop every other session.
+    db.execute("DELETE FROM sessions WHERE user_id = ? AND id != ?", (user["id"], user["session_id"]))
+    audit("user.password_changed", request, user)
+    return redirect("/settings?saved=password#security")
+
+
+@app.post("/settings/hint")
+def settings_hint(request: Request, csrf: str = Form(""), hint: str = Form("")):
+    user = _require_or_redirect(request)
+    if user is None:
+        return redirect("/login")
+    if not csrf_ok(request, csrf):
+        return redirect("/settings?pwerr=Session+expired.+Try+again.#security")
+    problem = security.hint_problem(hint)
+    if problem:
+        return redirect("/settings?pwerr=" + quote(problem) + "#security")
+    db.execute("UPDATE users SET password_hint = ? WHERE id = ?",
+               (security.clean_hint(hint) or None, user["id"]))
+    audit("user.hint_changed", request, user)
+    return redirect("/settings?saved=hint#security")
 
 
 @app.post("/settings/plaid/ack")

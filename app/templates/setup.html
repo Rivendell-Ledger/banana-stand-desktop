@@ -30,13 +30,31 @@
     </div>
     <div class="field">
       <label for="password">Password</label>
-      <input class="input" id="password" name="password" type="password" required
-             autocomplete="new-password" minlength="8" placeholder="At least 8 characters">
+      <div class="pw-row">
+        <input class="input" id="password" name="password" type="password" required
+               autocomplete="new-password" minlength="8" placeholder="At least 8 characters">
+        <button class="btn btn-ghost btn-sm" type="button" data-reveal="password"
+                aria-pressed="false" aria-controls="password">Show</button>
+      </div>
     </div>
     <div class="field">
       <label for="password2">Confirm password</label>
-      <input class="input" id="password2" name="password2" type="password" required
-             autocomplete="new-password" minlength="8" placeholder="Type it again">
+      <div class="pw-row">
+        <input class="input" id="password2" name="password2" type="password" required
+               autocomplete="new-password" minlength="8" placeholder="Type it again">
+        <button class="btn btn-ghost btn-sm" type="button" data-reveal="password2"
+                aria-pressed="false" aria-controls="password2">Show</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="hint">Password hint <span class="muted">(optional)</span></label>
+      <input class="input" id="hint" name="hint" type="text" maxlength="80"
+             value="{{ form.hint if form else '' }}"
+             placeholder="Something that jogs your memory">
+      <p class="field-hint">
+        Shown on the sign-in page if you draw a blank. Anyone who can open this app can read
+        it, so never put the password — or a piece of it — in here.
+      </p>
     </div>
     <div class="auth-actions">
       <button class="btn btn-primary" type="submit">Create household</button>

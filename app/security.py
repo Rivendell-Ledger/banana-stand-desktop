@@ -64,6 +64,23 @@ def password_problem(password: str) -> str | None:
     return None
 
 
+HINT_MAX = 80
+
+
+def clean_hint(value: str) -> str:
+    """A hint is displayed before sign-in, so keep it one line and short."""
+    return " ".join((value or "").split())[:HINT_MAX]
+
+
+def hint_problem(value: str) -> str | None:
+    text = " ".join((value or "").split())
+    if len(text) > HINT_MAX:
+        return f"Keep the hint to {HINT_MAX} characters or fewer."
+    if text and len(text) < 3:
+        return "The hint needs at least 3 characters, or leave it empty."
+    return None
+
+
 def new_session_token() -> str:
     return secrets.token_urlsafe(48)
 

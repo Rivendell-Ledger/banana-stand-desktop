@@ -95,7 +95,7 @@ def test_setup_rejects_bad_csrf(client):
 def test_setup_creates_household_and_user(client):
     r = create_household(client)
     assert r.status_code == 303
-    assert r.headers["location"] == "/login?created=1"
+    assert r.headers["location"] == "/setup/connect"
     assert db.count("users") == 1
     row = db.query_one("SELECT email, display_name FROM users")
     assert row["email"] == "alex@example.com"

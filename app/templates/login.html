@@ -28,8 +28,18 @@
     </div>
     <div class="field">
       <label for="password">Password</label>
-      <input class="input" id="password" name="password" type="password"
-             autocomplete="current-password" required placeholder="Your password">
+      <div class="pw-row">
+        <input class="input" id="password" name="password" type="password"
+               autocomplete="current-password" required placeholder="Your password">
+        <button class="btn btn-ghost btn-sm" type="button" data-reveal="password"
+                aria-pressed="false" aria-controls="password">Show</button>
+      </div>
+      <p class="field-hint">
+        <button class="linkish" type="button" data-hint-for="email" data-hint-target="pw-hint">
+          Forgot it? Show hint
+        </button>
+      </p>
+      <p class="field-hint" id="pw-hint" role="status" hidden></p>
     </div>
     <div class="auth-actions">
       <button class="btn btn-primary" type="submit">Sign in</button>
