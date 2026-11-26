@@ -1676,7 +1676,9 @@ def desktop_settings_check(request: Request):
 
 
 @app.post("/settings/desktop")
-def desktop_settings_save(request: Request, csrf: str = Form(""), lan: str = Form("")):
+def desktop_settings_save(
+    request: Request, csrf: str = Form(""), lan: str = Form(""), next: str = Form("")
+):
     user = _require_or_redirect(request)
     if user is None:
         return redirect("/login")
@@ -1684,6 +1686,8 @@ def desktop_settings_save(request: Request, csrf: str = Form(""), lan: str = For
         return redirect("/settings/desktop")
     settings_store.set(user["household_id"], "desktop_lan", lan == "1")
     audit("desktop.lan", request, user, enabled=lan == "1")
+    if next == "settings":
+        return redirect("/settings?tab=phone&saved=phone")
     return redirect("/settings/desktop?saved=1")
 
 
@@ -1732,8 +1736,11 @@ def _lan_ip() -> str:
     return candidates[0] if candidates else ""
 
 
+SETTINGS_TABS = ("profile", "bank", "security", "phone", "updates", "manage", "about")
+
+
 @app.get("/settings", response_class=HTMLResponse)
-def settings_page(request: Request, linked: int = 0, error: str = ""):
+def settings_page(request: Request, linked: int = 0, error: str = "", tab: str = "profile"):
     user = _require_or_redirect(request)
     if user is None:
         return redirect("/login")
@@ -1743,9 +1750,27 @@ def settings_page(request: Request, linked: int = 0, error: str = ""):
         # The wizard's Connect button lands here; bring the user back to the wizard.
         return redirect("/setup/connect?connected=1")
     hint_row = db.query_one("SELECT password_hint FROM users WHERE id = ?", (user["id"],))
+    if tab not in SETTINGS_TABS:
+        tab = "profile"
+    if not request.query_params.get("tab") and (linked or error or request.query_params.get("reconnected")):
+        # Coming back from Plaid: land on the section that has the answer.
+        tab = "bank"
+    lan = bool(settings_store.get(hid, "desktop_lan", False))
+    port = request.url.port or 8093
+    candidates = _lan_candidates()
+    primary = candidates[0] if candidates else ""
+    installable = os.name == "nt" and bool(getattr(sys, "frozen", False))
     return render(
         request,
         "settings.html",
+        tab=tab,
+        lan=lan,
+        port=port,
+        lan_url=f"http://{primary}:{port}" if primary else "",
+        alt_urls=[f"http://{ip}:{port}" for ip in candidates[1:4]],
+        lan_active=os.environ.get("BANANA_LAN_ACTIVE") == "1",
+        installer=updates.install_target(hid) if installable else None,
+        packaged=bool(getattr(sys, "frozen", False)),
         items=items,
         plaid_ready=plaid.configured(),
         plaid_env=plaid.env_name(),
@@ -1771,16 +1796,111 @@ def _wants_json(request: Request) -> bool:
     return request.headers.get("x-requested-with") == "fetch"
 
 
+_SECTION_TABS = {
+    "profile": "profile",
+    "household": "profile",
+    "password": "security",
+    "hint": "security",
+    "updates": "updates",
+}
+
+
 def _saved(request: Request, section: str, message: str = "Saved."):
     if _wants_json(request):
         return JSONResponse({"ok": True, "message": message})
-    return redirect(f"/settings?saved={section}")
+    tab = _SECTION_TABS.get(section, "profile")
+    return redirect(f"/settings?tab={tab}&saved={section}")
 
 
-def _save_error(request: Request, message: str):
+def _save_error(request: Request, message: str, tab: str = "security"):
     if _wants_json(request):
         return JSONResponse({"ok": False, "error": message}, status_code=400)
-    return redirect("/settings?pwerr=" + quote(message))
+    return redirect(f"/settings?tab={tab}&pwerr=" + quote(message))
+
+
+@app.post("/settings/profile")
+def settings_profile(
+    request: Request,
+    csrf: str = Form(""),
+    display_name: str = Form(""),
+    username: str = Form(""),
+    household: str = Form(""),
+    buffer: str = Form("0"),
+):
+    user = _require_or_redirect(request)
+    if user is None:
+        return redirect("/login")
+    if not csrf_ok(request, csrf):
+        return _save_error(request, "Session expired. Try again.", tab="profile")
+
+    display_name = " ".join(display_name.split())[:40]
+    if not security.valid_name(display_name):
+        return _save_error(
+            request,
+            "Your name needs 2-40 characters: letters, digits, spaces, dots, dashes or apostrophes.",
+            tab="profile",
+        )
+    handle = security.normalize_login(username)
+    if not security.valid_login(handle):
+        return _save_error(
+            request,
+            "That username needs 2-40 letters, digits, dots, dashes or underscores, or an email address.",
+            tab="profile",
+        )
+    taken = db.query_one(
+        "SELECT id FROM users WHERE email = ? AND id <> ?", (handle, user["id"])
+    )
+    if taken is not None:
+        return _save_error(request, "That username is already taken.", tab="profile")
+
+    name = " ".join((household or "").split())[:80] or config.APP_NAME
+    try:
+        cents = int(round(float(buffer or 0) * 100))
+    except ValueError:
+        return _save_error(request, "That buffer is not a number.", tab="profile")
+    if cents < 0:
+        return _save_error(request, "The buffer cannot be negative.", tab="profile")
+
+    with db.session_scope() as conn:
+        conn.execute(
+            "UPDATE users SET display_name = ?, email = ? WHERE id = ?",
+            (display_name, handle, user["id"]),
+        )
+        conn.execute(
+            "UPDATE households SET name = ?, buffer_cents = ? WHERE id = ?",
+            (name, cents, user["household_id"]),
+        )
+    audit("user.profile_changed", request, user, username=handle)
+
+    message = "Profile saved."
+    if _wants_json(request):
+        response = JSONResponse({"ok": True, "message": message})
+    else:
+        response = redirect("/settings?tab=profile&saved=profile")
+    # The remembered name on the sign-in page is the old handle now.
+    response.delete_cookie("bs_last_user", path="/")
+    return response
+
+
+@app.post("/settings/install")
+def settings_install(request: Request, csrf: str = Form("")):
+    user = _require_or_redirect(request)
+    if user is None:
+        return redirect("/login")
+    if not csrf_ok(request, csrf):
+        return _save_error(request, "Session expired. Try again.", tab="updates")
+    if os.name != "nt" or not getattr(sys, "frozen", False):
+        return _save_error(request, "Installing from inside the app works in the Windows build only.", tab="updates")
+    target = updates.install_target(user["household_id"])
+    if target is None:
+        return _save_error(request, "No newer version is ready to download. Press Check now first.", tab="updates")
+    audit("settings.update_install", request, user, version=target["version"])
+    updates.install_async(target)
+    return _saved(
+        request,
+        "updates",
+        f"Downloading {target['version']}… The app will close and reopen when the installer finishes.",
+    )
 
 
 @app.post("/settings/password")

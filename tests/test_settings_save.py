@@ -50,13 +50,13 @@ def make_household(client: TestClient):
 def test_only_the_section_that_saved_reports_it(client):
     make_household(client)
 
-    page = client.get("/settings?saved=password")
+    page = client.get("/settings?tab=security&saved=password")
     assert page.text.count("Password changed.") == 1
     assert "Hint saved." not in page.text
-    assert "Household saved." not in page.text
+    assert "Profile saved." not in page.text
 
-    page = client.get("/settings?saved=household")
-    assert page.text.count("Household saved.") == 1
+    page = client.get("/settings?tab=profile&saved=profile")
+    assert page.text.count("Profile saved.") == 1
     assert "Password changed." not in page.text
 
 
@@ -67,7 +67,7 @@ def test_hint_save_reports_only_the_hint(client):
                     follow_redirects=True)
     assert "Hint saved." in r.text
     assert "Password changed." not in r.text
-    assert "Household saved." not in r.text
+    assert "Profile saved." not in r.text
 
 
 def test_fetch_save_returns_json_instead_of_a_redirect(client):

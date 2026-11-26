@@ -2095,3 +2095,30 @@ iframe.plaid-frame {
 }
 
 pre { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; max-width: 100%; }
+
+/* Settings tabs */
+.tabs {
+  display: flex;
+  gap: var(--sp-1);
+  margin: 0 0 var(--sp-5);
+  border-bottom: 1px solid var(--border-soft);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tab:hover { color: var(--ink); }
+.tab.is-active { color: var(--ink); border-bottom-color: var(--accent); }
+
+/* Edge paints its own reveal eye inside password fields; the app has one. */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear { display: none; }

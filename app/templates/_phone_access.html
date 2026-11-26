@@ -1,0 +1,49 @@
+{# Phone access, shared by the Settings tab and the standalone page.
+   Hosts render their own alert; this file is only the two cards. #}
+<section class="card">
+  <h2 class="card-title">Same ledger, another screen</h2>
+  <p class="sub">Turn this on and any phone, tablet or laptop on your home Wi-Fi can open the same Banana Stand. There is no syncing involved — they are reading the one database on this computer.</p>
+  <form method="post" action="/settings/desktop" class="auth-form">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="next" value="{{ phone_next|default('') }}">
+    <label class="check">
+      <input type="checkbox" name="lan" value="1" {{ 'checked' if lan else '' }}>
+      <span>Allow devices on this network to connect</span>
+    </label>
+    <div class="field">
+      <label>Address to open on your phone</label>
+      {% if lan_url %}
+      <input class="input" type="text" readonly value="{{ lan_url }}">
+      <span class="field-hint">The computer must be on, awake, and running The Banana Stand.</span>
+      {% else %}
+      <span class="field-hint">No private network address was found. Connect this computer to Wi-Fi or Ethernet, then reopen this page.</span>
+      {% endif %}
+      {% if alt_urls %}
+      <span class="field-hint">Other addresses on this computer: {{ alt_urls|join(' · ') }}. Use the one on the same Wi-Fi as the phone.</span>
+      {% endif %}
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Save</button>
+      {% if lan_url %}<a class="btn btn-ghost" href="/settings/desktop/check">Check this address</a>{% endif %}
+      <span class="hint">{{ 'Restart the app to apply.' if lan else 'Off: only this computer can reach it.' }}</span>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Before you turn it on</h2>
+  <ul class="steps">
+    <li><span class="step-n">1</span><span><strong>Restart after saving.</strong> Quit The Banana Stand from the tray icon (right-click → Quit), then open it again. Saving the toggle does not rebind the running server, and closing the window only hides it in the tray.</span></li>
+    <li><span class="step-n">2</span><span><strong>Answer the Windows firewall prompt with Yes.</strong> The first time it listens, Windows asks whether to allow BananaStand to communicate on networks. Choose <strong>Yes</strong> and tick <strong>Private networks</strong>. If you missed it or answered No, open Windows Security → Firewall &amp; network protection → <em>Allow an app through firewall</em>, tick BananaStand on Private, or run this in an admin PowerShell:
+      <pre><code>New-NetFirewallRule -DisplayName "Banana Stand" -Direction Inbound -Program "$env:LOCALAPPDATA\Programs\BananaStand\BananaStand.exe" -Action Allow -Profile Private</code></pre></span></li>
+    <li><span class="step-n">3</span><span><strong>Check what it is listening on</strong> (PowerShell):
+      <pre><code>Get-NetTCPConnection -LocalPort {{ port }} -State Listen | Select-Object LocalAddress,LocalPort</code></pre>
+      <code>0.0.0.0</code> means the network is open. <code>127.0.0.1</code> means it is still this computer only — go back to step 1.</span></li>
+    <li><span class="step-n">4</span><span><strong>Check the Wi-Fi is marked Private</strong> (PowerShell):
+      <pre><code>Get-NetConnectionProfile</code></pre>
+      If it says Public, go to Settings → Network &amp; internet → Wi-Fi → your network → set the profile to <strong>Private</strong>.</span></li>
+    <li><span class="step-n">5</span><span><strong>Use the same network.</strong> The phone must be on the same Wi-Fi SSID — not cellular, and not a guest network that isolates devices from each other.</span></li>
+    <li><span class="step-n">6</span><span><strong>Press “Check this address” above.</strong> If the PC answers there but the phone still cannot, the block is Windows Firewall or Wi-Fi isolation, not the app.</span></li>
+    <li><span class="step-n">7</span><span>Connect banks on the computer. Some banks' sign-in windows do not return cleanly on a phone browser.</span></li>
+  </ul>
+</section>

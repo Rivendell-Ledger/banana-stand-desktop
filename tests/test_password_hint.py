@@ -156,7 +156,7 @@ def test_hint_can_be_changed_and_cleared(client):
     r = client.post("/settings/hint", data={"csrf": token, "hint": "new hint"},
                     follow_redirects=False)
     assert "saved=hint" in r.headers["location"]
-    assert client.get("/settings").text.count("new hint") >= 1
+    assert client.get("/settings?tab=security").text.count("new hint") >= 1
 
     token = csrf_of(client.get("/settings").text)
     client.post("/settings/hint", data={"csrf": token, "hint": ""}, follow_redirects=False)

@@ -9,6 +9,56 @@
   </div>
 </div>
 
+<nav class="tabs" aria-label="Settings sections">
+  {% for key, label in [('profile', 'Profile'), ('bank', 'Bank Connections'), ('security', 'Security'),
+                        ('phone', 'Phone Access'), ('updates', 'Updates'), ('manage', 'Manage'),
+                        ('about', 'About')] %}
+  <a class="tab{% if tab == key %} is-active{% endif %}" href="/settings?tab={{ key }}"
+     {% if tab == key %}aria-current="page"{% endif %}>{{ label }}</a>
+  {% endfor %}
+</nav>
+
+{# ── Profile ─────────────────────────────────────────────────────────── #}
+{% if tab == 'profile' %}
+<section class="card">
+  <h2 class="card-title">Profile</h2>
+  {% if saved == 'profile' %}<div class="alert alert-ok">Profile saved.</div>{% endif %}
+  <form method="post" action="/settings/profile" class="form-grid" data-save>
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field">
+      <label for="p-display">Your name</label>
+      <input class="input" id="p-display" name="display_name" value="{{ user.display_name }}"
+             maxlength="40" required>
+      <p class="field-hint">How the app addresses you. Not used to sign in.</p>
+    </div>
+    <div class="field">
+      <label for="p-user">Username</label>
+      <input class="input" id="p-user" name="username" value="{{ user.email }}" maxlength="120"
+             required autocapitalize="none" spellcheck="false">
+      <p class="field-hint">What you type on the sign-in screen — a name or an email address.</p>
+    </div>
+    <div class="field">
+      <label for="h-name">Household name</label>
+      <input class="input" id="h-name" name="household"
+             value="{{ household.name if household else '' }}" maxlength="80">
+      <p class="field-hint">A label for this household. It appears here and on the About tab; it does not change how anything is calculated.</p>
+    </div>
+    <div class="field">
+      <label for="h-buffer">Buffer</label>
+      <input class="input" id="h-buffer" name="buffer" inputmode="decimal"
+             value="{{ '%.2f'|format((household.buffer_cents if household else 0) / 100) }}">
+      <p class="field-hint">Held back from safe-to-spend and the forecast. Your never-touch floor.</p>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit" data-busy="Saving…">Save profile</button>
+      <span class="save-status" data-save-status role="status"></span>
+    </div>
+  </form>
+</section>
+{% endif %}
+
+{# ── Bank Connections ────────────────────────────────────────────────── #}
+{% if tab == 'bank' %}
 {% if linked %}<div class="alert alert-ok">Connected. The first sync is done — transactions are in the ledger.</div>{% endif %}
 {% if request.query_params.get('reconnected') %}<div class="alert alert-ok">Reconnected. The connection signed in again and the sync is running.</div>{% endif %}
 {% if error %}
@@ -22,11 +72,6 @@
 
 <section class="card">
   <h2 class="card-title">Bank connections</h2>
-  <div class="form-actions">
-    <a class="btn btn-ghost btn-sm" href="/settings/plaid">Plaid credentials</a>
-    <a class="btn btn-ghost btn-sm" href="/settings/recovery">Recovery kit</a>
-    <a class="btn btn-ghost btn-sm" href="/settings/desktop">Phone access</a>
-  </div>
 
   {% if not plaid_ready %}
   <p class="sub">Plaid is not configured yet. The app needs two API values before a bank can be linked.</p>
@@ -142,6 +187,27 @@
 </section>
 {% endif %}
 
+<section class="card">
+  <h2 class="card-title">Plaid credentials</h2>
+  <p class="sub">{% if plaid_ready %}Configured — running in {{ plaid_env }} mode with {{ slots_used }} of {{ plaid_max }} Item slots used.{% else %}Not configured yet — that is why no bank can be linked.{% endif %}</p>
+  <p class="field-hint">The Client ID and secret, and the button that tests them before saving.</p>
+  <div class="form-actions">
+    <a class="btn btn-ghost" href="/settings/plaid">Open Plaid credentials</a>
+  </div>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Recovery kit</h2>
+  <p class="sub">What to do if this computer is lost, or the app will not open.</p>
+  <p class="field-hint">A printable page with your sign-in name, where the data lives, and how to restore a backup. Keep it somewhere other than this machine.</p>
+  <div class="form-actions">
+    <a class="btn btn-ghost" href="/settings/recovery">Open recovery kit</a>
+  </div>
+</section>
+{% endif %}
+
+{# ── Security ────────────────────────────────────────────────────────── #}
+{% if tab == 'security' %}
 <section class="card" id="security">
   <h2 class="card-title">Security</h2>
   {% if pwerr %}<div class="alert alert-error" role="alert">{{ pwerr }}</div>{% endif %}
@@ -242,12 +308,25 @@
       <span class="save-status" data-save-status role="status"></span>
     </div>
   </form>
-
 </section>
+{% endif %}
 
+{# ── Phone Access ────────────────────────────────────────────────────── #}
+{% if tab == 'phone' %}
+{% if saved == 'phone' %}<div class="alert alert-ok">Saved. Restart the app for the change to take effect.</div>{% endif %}
+{% if lan and not lan_active %}
+<div class="alert alert-error" role="alert">This run is still bound to this computer only. Quit The Banana Stand from the tray icon (right-click → Quit) and open it again — saving the setting does not rebind the running server.</div>
+{% endif %}
+{% if lan and lan_active %}<div class="alert alert-ok">Listening on the local network.</div>{% endif %}
+{% set phone_next = 'settings' %}
+{% include "_phone_access.html" %}
+{% endif %}
+
+{# ── Updates ─────────────────────────────────────────────────────────── #}
+{% if tab == 'updates' %}
 <section class="card" id="updates">
   <h2 class="card-title">Updates</h2>
-  {% if saved == 'updates' %}<div class="alert alert-ok">Saved.</div>{% endif %}
+  {% if saved == 'updates' %}<div class="alert alert-ok" id="update-saved-note">Saved.</div>{% endif %}
   {% if checked == 'latest' %}<div class="alert alert-ok">Checked — you're on the latest version (v{{ version }}).</div>{% endif %}
   {% if checked == 'newer' and update_notice %}<div class="alert alert-info">Checked — version {{ update_notice.latest }} is available.</div>{% endif %}
   {% if checked == 'error' %}<div class="alert alert-error" role="alert">Couldn't reach GitHub just now. Try again in a few minutes.</div>{% endif %}
@@ -274,8 +353,29 @@
       <span class="save-status" data-save-status role="status"></span>
     </div>
   </form>
-</section>
 
+  {% if installer %}
+  <div class="card-divider">
+    <p class="sub">Update {{ installer.version }} is downloaded from GitHub and run here. The app closes while it installs, then opens again.</p>
+    <form method="post" action="/settings/install" data-save>
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit" data-busy="Starting…">Download &amp; install {{ installer.version }}</button>
+        <span class="save-status" data-save-status role="status"></span>
+      </div>
+      <p class="field-hint">Windows will ask permission to run the installer. The build is not code-signed yet, so SmartScreen may need <strong>More info → Run anyway</strong>.</p>
+    </form>
+  </div>
+  {% elif update_notice %}
+  <div class="card-divider">
+    <p class="field-hint">This build cannot install updates on its own — use the release link above.</p>
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+
+{# ── Manage ──────────────────────────────────────────────────────────── #}
+{% if tab == 'manage' %}
 <section class="card">
   <h2 class="card-title">Manage</h2>
   <ul class="history">
@@ -285,29 +385,6 @@
     <li><a href="/trash">Trash</a><span class="muted">restore deleted transactions</span></li>
     <li><a href="/settings/audit">Audit log</a><span class="muted">every change, who and when</span></li>
   </ul>
-</section>
-
-<section class="card">
-  <h2 class="card-title">Household</h2>
-  {% if saved == 'household' %}<div class="alert alert-ok">Household saved.</div>{% endif %}
-  <form method="post" action="/settings/household" class="form-grid" data-save>
-    <input type="hidden" name="csrf" value="{{ csrf }}">
-    <div class="field">
-      <label for="h-name">Household name</label>
-      <input class="input" id="h-name" name="household" value="{{ household.name if household else '' }}" maxlength="80">
-    </div>
-    <div class="field">
-      <label for="h-buffer">Buffer</label>
-      <input class="input" id="h-buffer" name="buffer" inputmode="decimal"
-             value="{{ '%.2f'|format((household.buffer_cents if household else 0) / 100) }}">
-      <p class="field-hint">Held back from safe-to-spend and the forecast. Your never-touch floor.</p>
-    </div>
-    <div class="form-actions">
-      <button class="btn btn-primary" type="submit" data-busy="Saving…">Save household</button>
-      <span class="form-note">{{ user.display_name }}</span>
-      <span class="save-status" data-save-status role="status"></span>
-    </div>
-  </form>
 </section>
 
 <section class="card">
@@ -328,13 +405,29 @@
     <code>backups</code> directory; copy them somewhere else as well.
   </p>
 </section>
+{% endif %}
+
+{# ── About ───────────────────────────────────────────────────────────── #}
+{% if tab == 'about' %}
+<section class="card">
+  <h2 class="card-title">The Banana Stand</h2>
+  <p class="sub">Version {{ version }} · {{ 'desktop build' if packaged else 'running from source' }}</p>
+  <ul class="history">
+    <li><a href="https://github.com/Rivendell-Ledger/banana-stand-desktop" target="_blank" rel="noopener">Source &amp; releases</a><span class="muted">github.com/Rivendell-Ledger</span></li>
+    <li><a href="https://github.com/Rivendell-Ledger/banana-stand-desktop/blob/main/LICENSE" target="_blank" rel="noopener">License</a><span class="muted">MIT</span></li>
+    <li><a href="/settings/audit">Audit log</a><span class="muted">every change, who and when</span></li>
+  </ul>
+  <p class="field-hint">Everything lives on this machine in SQLite. No third party holds the ledger,
+  and the only network call the app makes on its own is the optional update check.</p>
+</section>
 
 <section class="card">
-  <h2 class="card-title">Household</h2>
-  <p class="sub">{{ user.household_name }} · {{ user.display_name }}</p>
-  <p class="field-hint">Everything lives on this machine in SQLite. No third party holds the ledger.</p>
-  <p class="field-hint">The Banana Stand v{{ version }}</p>
+  <h2 class="card-title">This household</h2>
+  <p class="sub">{{ user.household_name }} · {{ user.display_name }} (signs in as {{ user.email }})</p>
+  <p class="field-hint">The household name is a label — it shows here and on the Profile tab and
+  changes nothing about how the ledger, budget or forecasts are calculated. Rename it under Profile.</p>
 </section>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

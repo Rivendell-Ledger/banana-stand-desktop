@@ -157,7 +157,7 @@ def sign_up(client):
 
 
 def link_item(client, fake) -> int:
-    page = client.get("/settings")
+    page = client.get("/settings?tab=bank")
     r = client.post("/plaid/exchange", data={
         "csrf": csrf_of(page.text),
         "public_token": "public-sandbox-1",
@@ -173,7 +173,7 @@ def test_settings_without_config(client, monkeypatch):
     monkeypatch.delenv("PLAID_CLIENT_ID", raising=False)
     monkeypatch.setattr(config, "PLAID_CLIENT_ID", "")
     sign_up(client)
-    page = client.get("/settings")
+    page = client.get("/settings?tab=bank")
     assert "not configured" in page.text
     # Desktop builds collect keys in-app instead of pointing at a .env file.
     assert "/settings/plaid" in page.text
@@ -181,7 +181,7 @@ def test_settings_without_config(client, monkeypatch):
 
 def test_link_token_new(client, fake):
     sign_up(client)
-    page = client.get("/settings")
+    page = client.get("/settings?tab=bank")
     r = client.post("/plaid/link-token", data={"csrf": csrf_of(page.text), "mode": "new"},
                     headers={"X-Requested-With": "fetch"})
     body = r.json()
@@ -211,7 +211,7 @@ def test_exchange_stores_encrypted_token(client, fake, tmp_path):
 def test_duplicate_item_is_refused(client, fake):
     sign_up(client)
     link_item(client, fake)
-    page = client.get("/settings")
+    page = client.get("/settings?tab=bank")
     r = client.post("/plaid/exchange", data={
         "csrf": csrf_of(page.text), "public_token": "public-sandbox-1",
         "institution_id": "ins_109508", "institution_name": "Chase",
@@ -230,7 +230,7 @@ def test_review_and_first_sync(client, fake):
     assert "Sapphire Reserve" in review.text
     assert "Create a new account" in review.text
 
-    page = client.get("/settings")
+    page = client.get("/settings?tab=bank")
     r = client.post("/plaid/review", data={
         "csrf": csrf_of(page.text),
         "item": str(item_id),
@@ -268,7 +268,7 @@ def test_review_and_first_sync(client, fake):
 def test_second_sync_adds_nothing(client, fake):
     sign_up(client)
     item_id = link_item(client, fake)
-    page = client.get("/settings")
+    page = client.get("/settings?tab=bank")
     client.post("/plaid/review", data={
         "csrf": csrf_of(page.text), "item": str(item_id),
         "plaid_account_id": ["plaid-checking", "plaid-card"],
@@ -276,7 +276,7 @@ def test_second_sync_adds_nothing(client, fake):
     }, follow_redirects=False)
     before = db.count("transactions")
 
-    settings = client.get("/settings")
+    settings = client.get("/settings?tab=bank")
     client.post(f"/plaid/sync/{item_id}", data={"csrf": csrf_of(settings.text)}, follow_redirects=False)
     assert db.count("transactions") == before
     assert fake.sync_payloads[-1]["cursor"] == "cursor-1"
@@ -285,7 +285,7 @@ def test_second_sync_adds_nothing(client, fake):
 def test_modified_and_removed(client, fake):
     sign_up(client)
     item_id = link_item(client, fake)
-    page = client.get("/settings")
+    page = client.get("/settings?tab=bank")
     client.post("/plaid/review", data={
         "csrf": csrf_of(page.text), "item": str(item_id),
         "plaid_account_id": ["plaid-checking", "plaid-card"],
@@ -294,7 +294,7 @@ def test_modified_and_removed(client, fake):
 
     fake.modified = [dict(TXNS_V1[0], amount=14.00, merchant_name="Starbucks Reserve")]
     fake.removed = [{"transaction_id": "txn-b"}]
-    settings = client.get("/settings")
+    settings = client.get("/settings?tab=bank")
     client.post(f"/plaid/sync/{item_id}", data={"csrf": csrf_of(settings.text)}, follow_redirects=False)
 
     a = db.query_one("SELECT * FROM transactions WHERE external_id = 'txn-a'")
@@ -314,7 +314,7 @@ def test_merge_into_existing_account(client, fake):
     existing_id = db.query_one("SELECT id FROM accounts")["id"]
 
     item_id = link_item(client, fake)
-    settings = client.get("/settings")
+    settings = client.get("/settings?tab=bank")
     client.post("/plaid/review", data={
         "csrf": csrf_of(settings.text), "item": str(item_id),
         "plaid_account_id": ["plaid-checking", "plaid-card"],
@@ -331,7 +331,7 @@ def test_merge_into_existing_account(client, fake):
 def test_update_mode_passes_access_token(client, fake):
     sign_up(client)
     item_id = link_item(client, fake)
-    page = client.get("/settings")
+    page = client.get("/settings?tab=bank")
     r = client.post("/plaid/link-token", data={
         "csrf": csrf_of(page.text), "mode": "update", "item_id": str(item_id),
     }, headers={"X-Requested-With": "fetch"})
@@ -344,13 +344,13 @@ def test_update_mode_passes_access_token(client, fake):
 def test_login_required_marks_item(client, fake):
     sign_up(client)
     item_id = link_item(client, fake)
-    page = client.get("/settings")
+    page = client.get("/settings?tab=bank")
     client.post("/plaid/review", data={
         "csrf": csrf_of(page.text), "item": str(item_id),
         "plaid_account_id": ["plaid-checking"], "mode_plaid-checking": "new",
     }, follow_redirects=False)
     fake.fail_with = "ITEM_LOGIN_REQUIRED"
-    settings = client.get("/settings")
+    settings = client.get("/settings?tab=bank")
     client.post(f"/plaid/sync/{item_id}", data={"csrf": csrf_of(settings.text)}, follow_redirects=False)
     row = db.query_one("SELECT status, error_code FROM plaid_items WHERE id = ?", (item_id,))
     assert row["status"] == "login_required"
@@ -367,7 +367,7 @@ def test_slot_limit(client, fake, monkeypatch):
             " status, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
             (hid, f"item-{i}", plaid.encrypt_token(f"access-{i}"), f"Bank {i}", "good", now, now),
         )
-    page = client.get("/settings")
+    page = client.get("/settings?tab=bank")
     assert "10 of 10 Item slots used" in page.text
     r = client.post("/plaid/link-token", data={"csrf": csrf_of(page.text), "mode": "new"},
                     headers={"X-Requested-With": "fetch"})
@@ -378,14 +378,14 @@ def test_slot_limit(client, fake, monkeypatch):
 def test_remove_unlinks_and_keeps_transactions(client, fake):
     sign_up(client)
     item_id = link_item(client, fake)
-    page = client.get("/settings")
+    page = client.get("/settings?tab=bank")
     client.post("/plaid/review", data={
         "csrf": csrf_of(page.text), "item": str(item_id),
         "plaid_account_id": ["plaid-checking"], "mode_plaid-checking": "new",
     }, follow_redirects=False)
     before = db.count("transactions")
 
-    settings = client.get("/settings")
+    settings = client.get("/settings?tab=bank")
     client.post(f"/plaid/remove/{item_id}", data={"csrf": csrf_of(settings.text)}, follow_redirects=False)
     assert db.count("plaid_items") == 0
     assert db.count("transactions") == before
@@ -399,7 +399,7 @@ def test_reconnect_refreshes_the_existing_item_instead_of_refusing_it(client, fa
     db.execute("UPDATE plaid_items SET status = 'login_required', error_code = 'ITEM_LOGIN_REQUIRED'"
                " WHERE id = ?", (item_id,))
 
-    page = client.get("/settings")
+    page = client.get("/settings?tab=bank")
     r = client.post("/plaid/exchange", data={
         "csrf": csrf_of(page.text), "public_token": "public-sandbox-1",
         "institution_id": "ins_109508", "institution_name": "Chase",
@@ -419,7 +419,7 @@ def test_reconnect_refreshes_the_existing_item_instead_of_refusing_it(client, fa
 def test_a_new_link_still_refuses_a_duplicate_without_an_item_id(client, fake):
     sign_up(client)
     link_item(client, fake)
-    page = client.get("/settings")
+    page = client.get("/settings?tab=bank")
     r = client.post("/plaid/exchange", data={
         "csrf": csrf_of(page.text), "public_token": "public-sandbox-1",
         "institution_id": "ins_109508", "institution_name": "Chase", "mode": "new",
@@ -432,7 +432,7 @@ def test_reconnect_without_a_public_token_refreshes_in_place(client, fake):
     sign_up(client)
     item_id = link_item(client, fake)
     db.execute("UPDATE plaid_items SET status = 'login_required' WHERE id = ?", (item_id,))
-    page = client.get("/settings")
+    page = client.get("/settings?tab=bank")
     r = client.post("/plaid/reconnected", data={"csrf": csrf_of(page.text), "item_id": str(item_id)},
                     follow_redirects=False)
     assert r.headers["location"] == "/settings?reconnected=1"
@@ -442,7 +442,7 @@ def test_reconnect_without_a_public_token_refreshes_in_place(client, fake):
 
 def test_link_token_is_reused_inside_its_window(client, fake):
     sign_up(client)
-    page = client.get("/settings")
+    page = client.get("/settings?tab=bank")
     csrf = csrf_of(page.text)
     first = client.post("/plaid/link-token", data={"csrf": csrf, "mode": "new"},
                         headers={"X-Requested-With": "fetch"}).json()
@@ -455,7 +455,7 @@ def test_link_token_is_reused_inside_its_window(client, fake):
 
 def test_a_rate_limited_link_token_says_so_plainly(client, fake):
     sign_up(client)
-    page = client.get("/settings")
+    page = client.get("/settings?tab=bank")
     fake.fail_with = "RATE_LIMIT"
     r = client.post("/plaid/link-token", data={"csrf": csrf_of(page.text), "mode": "new"},
                     headers={"X-Requested-With": "fetch"})

@@ -6,6 +6,11 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to stamp on the build (blank = 0.0.0-dev)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -54,6 +59,8 @@ jobs:
         run: |
           if ("${{ github.ref_type }}" -eq "tag") {
             $version = "${{ github.ref_name }}" -replace '^v', ''
+          } elseif ("${{ inputs.version }}" -ne "") {
+            $version = "${{ inputs.version }}"
           } else {
             $version = "0.0.0-dev"
           }

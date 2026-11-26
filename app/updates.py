@@ -10,9 +10,12 @@ from __future__ import annotations
 import json
 import logging
 import re
+import subprocess
+import tempfile
 import threading
 import time
 import urllib.request
+from pathlib import Path
 
 from . import config, settings_store
 
@@ -64,11 +67,19 @@ def _pick_latest(releases: list) -> dict | None:
         if not tag:
             continue
         if best is None or parse_version(tag) > parse_version(best["latest"]):
+            assets = rel.get("assets") or []
+            exe = next(
+                (a for a in assets if str(a.get("name") or "").lower().endswith(".exe")),
+                None,
+            )
             best = {
                 "latest": tag.lstrip("vV"),
                 "url": rel.get("html_url") or RELEASES_URL,
                 "published": rel.get("published_at") or "",
                 "prerelease": bool(rel.get("prerelease")),
+                "asset": (exe or {}).get("browser_download_url") or "",
+                "asset_name": (exe or {}).get("name") or "",
+                "asset_size": int((exe or {}).get("size") or 0),
             }
     return best
 
@@ -165,6 +176,38 @@ def check_now(household_id: int) -> dict:
                 "message": f"Version {latest} is available — see the release notes."}
     return {"status": "latest", "latest": latest or config.VERSION,
             "message": f"You're on the latest version ({config.VERSION})."}
+
+
+def install_target(household_id: int) -> dict | None:
+    """The newest release's Windows installer, when there is a newer release."""
+    record = _record(household_id)
+    latest = str(record.get("latest") or "")
+    if not latest or not is_newer(latest) or not record.get("asset"):
+        return None
+    return {
+        "version": latest,
+        "url": str(record["asset"]),
+        "name": str(record.get("asset_name") or f"BananaStandSetup-{latest}.exe"),
+        "size": int(record.get("asset_size") or 0),
+    }
+
+
+def install_async(target: dict) -> None:
+    """Download the installer, then hand over to it; it closes and reopens the app."""
+
+    def run() -> None:
+        try:
+            dest = Path(tempfile.gettempdir()) / target["name"]
+            with urllib.request.urlopen(target["url"], timeout=120) as resp:  # noqa: S310 - fixed host
+                payload = resp.read()
+            if len(payload) < 1_000_000:
+                raise OSError("the download looked incomplete")
+            dest.write_bytes(payload)
+            subprocess.Popen([str(dest), "/CLOSEAPPLICATIONS", "/RESTARTAPPLICATIONS"])
+        except Exception:  # noqa: BLE001 - a failed download must not break the app
+            logger.exception("could not install the update")
+
+    threading.Thread(target=run, name="update-install", daemon=True).start()
 
 
 def notice(household_id: int | None) -> dict | None:

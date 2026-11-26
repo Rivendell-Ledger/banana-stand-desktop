@@ -81,6 +81,21 @@ def test_prerelease_releases_are_candidates():
     assert picked["url"] == "u14"
 
 
+def test_the_installer_asset_is_carried_with_the_release():
+    picked = updates._pick_latest([{
+        "tag_name": "v9.9.9", "prerelease": True, "draft": False, "html_url": "u",
+        "assets": [
+            {"name": "notes.txt", "browser_download_url": "n", "size": 10},
+            {"name": "BananaStandSetup-9.9.9.exe", "browser_download_url": "https://x/y.exe",
+             "size": 49_000_000},
+        ],
+    }])
+    assert picked is not None
+    assert picked["asset"] == "https://x/y.exe"
+    assert picked["asset_name"] == "BananaStandSetup-9.9.9.exe"
+    assert picked["asset_size"] == 49_000_000
+
+
 def test_a_newer_prerelease_raises_the_banner(client, monkeypatch):
     make_household(client)
     monkeypatch.setattr(updates, "_fetch_latest", lambda: {
